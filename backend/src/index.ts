@@ -5,9 +5,10 @@ import pg from 'pg'
 import cors from 'cors'
 import 'dotenv/config'
 
-// Importer nos routes d'authentification et de menu
+// Importer nos routes d'authentification, de menu et de commande
 import authRoutes from './routes/auth.routes'
 import menuRoutes from './routes/menu.routes'
+import orderRoutes from './routes/order.routes'
 
 // Utilisation de pg native pour l'adapter Prisma
 const pool = new pg.Pool({
@@ -26,6 +27,7 @@ app.use(express.json())
 // Définir les routes de l'API
 app.use('/api/auth', authRoutes)
 app.use('/api/menu', menuRoutes)
+app.use('/api/orders', orderRoutes)
 
 app.get('/health', async (req, res) => {
   try {
