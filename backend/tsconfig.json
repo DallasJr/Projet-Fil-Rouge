@@ -18,5 +18,6 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "noImplicitAny": true
-  }
+  },
+  "exclude": ["node_modules", "prisma.config.ts", "prisma/"]
 }
