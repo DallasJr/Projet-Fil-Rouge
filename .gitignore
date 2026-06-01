@@ -118,3 +118,9 @@ Thumbs.db
 *.keystore
 *.apk
 *.aab
+
+# Notes personnelles avec credentials — NE JAMAIS COMMITTER
+memo.md
+
+# Scripts de setup one-shot (contiennent des imports de DB)
+backend/scripts/*.js

@@ -84,8 +84,18 @@ export const getMyOrders = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
 
+    let whereClause: any = { customerId: req.user.id }
+
+    if (req.user.role === Role.DELIVERER) {
+      whereClause = {
+        delivery: {
+          delivererId: req.user.id
+        }
+      }
+    }
+
     const orders = await prisma.order.findMany({
-      where: { customerId: req.user.id },
+      where: whereClause,
       include: {
         items: { include: { item: true } },
         delivery: true

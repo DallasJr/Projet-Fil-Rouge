@@ -1,0 +1,285 @@
+import { useState, useEffect } from 'react'
+import { ShoppingCart, Plus, Minus, Trash2, Send, Tag, Search, AlertCircle, MapPin, CreditCard } from 'lucide-react'
+import { getCategories, getItems } from '../api/menu.api'
+import { createOrder } from '../api/orders.api'
+import type { Category, Item } from '../api/menu.api'
+import type { OrderItemPayload } from '../api/orders.api'
+
+// ID du restaurant — en production, vient d'un contexte ou d'une sélection
+const RESTAURANT_ID = import.meta.env.VITE_RESTAURANT_ID || ''
+
+interface CartItem extends Item {
+  quantity: number
+}
+
+const MenuPage = () => {
+  const [categories, setCategories] = useState<Category[]>([])
+  const [items, setItems] = useState<Item[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [notes, setNotes] = useState('')
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [withDelivery, setWithDelivery] = useState(false)
+  const [isCartOpen, setIsCartOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isOrdering, setIsOrdering] = useState(false)
+  const [orderSuccess, setOrderSuccess] = useState(false)
+  const [error, setError] = useState('')
+  const [restaurantId, setRestaurantId] = useState(RESTAURANT_ID)
+
+  useEffect(() => {
+    // Si pas d'ID en env, on essaie de le récupérer via l'API
+    const fetchData = async () => {
+      try {
+        const [cats, its] = await Promise.all([getCategories(), getItems()])
+        setCategories(cats)
+        setItems(its)
+        // Récupérer le restaurantId depuis la première catégorie
+        if (cats.length > 0 && !restaurantId) {
+          setRestaurantId(cats[0].restaurantId)
+        }
+      } catch {
+        setError('Impossible de charger le menu. Vérifiez que le backend est démarré.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
+
+  const filteredItems = items.filter(
+    (item) =>
+      item.isAvailable &&
+      (selectedCategory === '' || item.categoryId === selectedCategory) &&
+      item.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const addToCart = (item: Item) => {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.id === item.id)
+      if (existing) return prev.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i)
+      return [...prev, { ...item, quantity: 1 }]
+    })
+  }
+
+  const updateQuantity = (id: string, delta: number) => {
+    setCart((prev) =>
+      prev.map((i) => i.id === id ? { ...i, quantity: i.quantity + delta } : i).filter((i) => i.quantity > 0)
+    )
+  }
+
+  const removeFromCart = (id: string) => setCart((prev) => prev.filter((i) => i.id !== id))
+
+  const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
+  const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
+
+  const handleOrder = async () => {
+    if (cart.length === 0) return
+    if (!restaurantId) {
+      setError("Aucun restaurant disponible. Demandez à l'admin de créer un restaurant.")
+      return
+    }
+    setIsOrdering(true)
+    setError('')
+    try {
+      const orderItems: OrderItemPayload[] = cart.map((i) => ({ itemId: i.id, quantity: i.quantity }))
+      await createOrder({
+        restaurantId,
+        items: orderItems,
+        note: notes || undefined,
+        deliveryAddress: withDelivery && deliveryAddress ? deliveryAddress : undefined,
+      })
+      setCart([])
+      setNotes('')
+      setDeliveryAddress('')
+      setIsCartOpen(false)
+      setOrderSuccess(true)
+      setTimeout(() => setOrderSuccess(false), 5000)
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de la commande.')
+    } finally {
+      setIsOrdering(false)
+    }
+  }
+
+  if (isLoading) return <div className="loading-screen"><div className="loading-spinner"></div></div>
+
+  return (
+    <div className="menu-page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Notre Menu</h1>
+          <p className="page-subtitle">Découvrez nos plats et passez votre commande</p>
+        </div>
+      </div>
+
+      {orderSuccess && (
+        <div className="alert alert-success" id="order-success">
+          🎉 Commande passée avec succès ! Nous la préparons dès maintenant.
+        </div>
+      )}
+      {error && (
+        <div className="alert alert-error">
+          <AlertCircle size={16} /><span>{error}</span>
+        </div>
+      )}
+
+      {/* Contrôles */}
+      <div className="menu-controls">
+        <div className="search-wrapper">
+          <Search size={16} className="input-icon" />
+          <input
+            id="menu-search"
+            type="text"
+            className="form-input search-input"
+            placeholder="Rechercher un plat..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="category-filters">
+          <button id="filter-all" className={`filter-chip ${selectedCategory === '' ? 'active' : ''}`} onClick={() => setSelectedCategory('')}>
+            <Tag size={13} /> Tous
+          </button>
+          {categories.map((cat) => (
+            <button key={cat.id} id={`filter-${cat.id}`} className={`filter-chip ${selectedCategory === cat.id ? 'active' : ''}`} onClick={() => setSelectedCategory(cat.id)}>
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grille produits */}
+      <div className="products-grid">
+        {filteredItems.length === 0 ? (
+          <div className="empty-state" style={{ gridColumn: '1/-1' }}>
+            <div className="empty-state-icon">🍽️</div>
+            <h2>Aucun plat trouvé</h2>
+            <p>Essayez une autre catégorie ou un autre terme de recherche.</p>
+          </div>
+        ) : (
+          filteredItems.map((item) => {
+            const cartItem = cart.find((i) => i.id === item.id)
+            return (
+              <div key={item.id} id={`product-${item.id}`} className="product-card">
+                {item.imageUrl
+                  ? <img src={item.imageUrl} alt={item.name} className="product-image" />
+                  : <div className="product-image-placeholder">🍽️</div>
+                }
+                <div className="product-info">
+                  <span className="product-category">{item.category?.name}</span>
+                  <h3 className="product-name">{item.name}</h3>
+                  {item.description && <p className="product-description">{item.description}</p>}
+                  <div className="product-footer">
+                    <span className="product-price">{item.price.toFixed(2)} €</span>
+                    {cartItem ? (
+                      <div className="quantity-controls">
+                        <button className="qty-btn" onClick={() => updateQuantity(item.id, -1)} id={`qty-minus-${item.id}`}><Minus size={13} /></button>
+                        <span className="qty-value">{cartItem.quantity}</span>
+                        <button className="qty-btn" onClick={() => updateQuantity(item.id, 1)} id={`qty-plus-${item.id}`}><Plus size={13} /></button>
+                      </div>
+                    ) : (
+                      <button id={`add-${item.id}`} className="btn btn-primary btn-sm" onClick={() => addToCart(item)}>
+                        <Plus size={13} /> Ajouter
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* FAB Panier */}
+      {cartCount > 0 && (
+        <button id="btn-open-cart" className="cart-fab" onClick={() => setIsCartOpen(true)}>
+          <ShoppingCart size={20} />
+          <span className="cart-fab-label">Panier</span>
+          <span className="cart-fab-badge">{cartCount}</span>
+          <span className="cart-fab-total">{cartTotal.toFixed(2)} €</span>
+        </button>
+      )}
+
+      {/* Panneau Panier */}
+      {isCartOpen && (
+        <div className="cart-overlay" onClick={() => setIsCartOpen(false)}>
+          <div className="cart-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="cart-header">
+              <h2 className="cart-title"><ShoppingCart size={19} /> Mon Panier</h2>
+              <button className="btn-icon" onClick={() => setIsCartOpen(false)} id="btn-close-cart">✕</button>
+            </div>
+
+            <div className="cart-items">
+              {cart.map((item) => (
+                <div key={item.id} className="cart-item">
+                  <div className="cart-item-info">
+                    <span className="cart-item-name">{item.name}</span>
+                    <span className="cart-item-price">{(item.price * item.quantity).toFixed(2)} €</span>
+                  </div>
+                  <div className="cart-item-controls">
+                    <button className="qty-btn" onClick={() => updateQuantity(item.id, -1)}><Minus size={12} /></button>
+                    <span className="qty-value">{item.quantity}</span>
+                    <button className="qty-btn" onClick={() => updateQuantity(item.id, 1)}><Plus size={12} /></button>
+                    <button className="btn-icon btn-danger" onClick={() => removeFromCart(item.id)} id={`remove-${item.id}`}><Trash2 size={13} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Options livraison */}
+            <div className="cart-options">
+              <label className="toggle-label">
+                <input
+                  type="checkbox"
+                  id="with-delivery"
+                  checked={withDelivery}
+                  onChange={(e) => setWithDelivery(e.target.checked)}
+                />
+                <span className="toggle-text"><MapPin size={14} /> Livraison à domicile</span>
+              </label>
+              {withDelivery && (
+                <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                  <input
+                    id="delivery-address"
+                    type="text"
+                    className="form-input"
+                    placeholder="Votre adresse complète..."
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="cart-notes">
+              <label className="form-label" htmlFor="cart-notes">Notes (optionnel)</label>
+              <textarea
+                id="cart-notes"
+                className="form-input"
+                placeholder="Allergies, instructions spéciales..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+              />
+            </div>
+
+            <div className="cart-footer">
+              <div className="cart-total">
+                <span>Total</span>
+                <span className="cart-total-amount">{cartTotal.toFixed(2)} €</span>
+              </div>
+              {withDelivery && <div className="cart-delivery-fee"><CreditCard size={13} /> +2.50 € de frais de livraison</div>}
+              <button id="btn-confirm-order" className="btn btn-primary btn-full" onClick={handleOrder} disabled={isOrdering || (withDelivery && !deliveryAddress)}>
+                {isOrdering ? <span className="btn-spinner"></span> : (<><Send size={15} /> Confirmer la commande</>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default MenuPage

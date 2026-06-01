@@ -15,11 +15,11 @@ const router = Router()
 
 // --- ROUTES COMMANDES (ORDERS) ---
 
-// Un client connecté peut créer une commande
-router.post('/', authenticateJWT, authorizeRoles(Role.CLIENT), createOrder)
+// CLIENT et ADMIN peuvent créer une commande (ADMIN pour tester)
+router.post('/', authenticateJWT, authorizeRoles(Role.CLIENT, Role.ADMIN), createOrder)
 
-// Un client connecté peut voir son historique de commandes
-router.get('/my-orders', authenticateJWT, authorizeRoles(Role.CLIENT), getMyOrders)
+// CLIENT, DELIVERER et ADMIN peuvent voir l'historique de commandes/livraisons
+router.get('/my-orders', authenticateJWT, authorizeRoles(Role.CLIENT, Role.DELIVERER, Role.ADMIN), getMyOrders)
 
 // Le restaurant (ADMIN) ou les livreurs peuvent voir toutes les commandes
 router.get('/all', authenticateJWT, authorizeRoles(Role.ADMIN, Role.DELIVERER), getAllOrders)
@@ -33,10 +33,10 @@ router.patch('/:id/status', authenticateJWT, authorizeRoles(Role.ADMIN), updateO
 // Les livreurs et admins peuvent voir les livraisons non assignées
 router.get('/deliveries/available', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), getAvailableDeliveries)
 
-// Un livreur peut accepter de prendre en charge une livraison
-router.post('/deliveries/:id/accept', authenticateJWT, authorizeRoles(Role.DELIVERER), acceptDelivery)
+// Un livreur (ou admin pour tester) peut accepter une livraison
+router.post('/deliveries/:id/accept', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), acceptDelivery)
 
-// Un livreur peut mettre à jour le statut (ex: commande récupérée, commande livrée) ou le paiement d'une livraison
+// Un livreur peut mettre à jour le statut ou le paiement d'une livraison
 router.patch('/deliveries/:id/status', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), updateDeliveryStatus)
 
 export default router

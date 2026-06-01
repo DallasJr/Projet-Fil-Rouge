@@ -19,5 +19,5 @@
     "allowJs": true,
     "noImplicitAny": true
   },
-  "exclude": ["node_modules", "prisma.config.ts", "prisma/"]
+  "exclude": ["node_modules", "prisma.config.ts", "prisma/", "scripts/", "dist/"]
 }
