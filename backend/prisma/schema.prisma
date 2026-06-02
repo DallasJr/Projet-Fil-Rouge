@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,10 +9,171 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  CLIENT
+  DELIVERER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY
+  DELIVERING
+  DELIVERED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  CASH
+  PAYPAL
+}
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  password  String
-  createdAt DateTime @default(now())
+  id               String            @id @default(uuid())
+  email            String            @unique
+  name             String
+  password         String
+  phone            String?
+  role             Role              @default(CLIENT)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  
+  // Relations
+  orders           Order[]           @relation("ClientOrders")
+  deliveries       Delivery[]        @relation("DelivererDeliveries")
+  addresses        Address[]
+  reviews          Review[]
+  notifications    Notification[]
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  street     String
+  city       String
+  zipCode    String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Restaurant {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  phone       String?
+  address     String
+  isOpen      Boolean  @default(true)
+  openAt      String?  // Format HH:MM
+  closeAt     String?  // Format HH:MM
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  categories  Category[]
+  orders      Order[]
+}
+
+model Category {
+  id           String      @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  displayOrder Int         @default(0)
+  items        Item[]
+  createdAt    DateTime    @default(now())
+}
+
+model Item {
+  id           String      @id @default(uuid())
+  categoryId   String
+  category     Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  price        Float
+  imageUrl     String?
+  isAvailable  Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  
+  // Relations
+  orderItems   OrderItem[]
+}
+
+model Order {
+  id            String         @id @default(uuid())
+  customerId    String
+  customer      User           @relation("ClientOrders", fields: [customerId], references: [id])
+  restaurantId  String
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id])
+  status        OrderStatus    @default(PENDING)
+  totalAmount   Float
+  note          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  // Relations
+  items         OrderItem[]
+  delivery      Delivery?
+  reviews       Review[]
+  notifications Notification[]
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      Item    @relation(fields: [itemId], references: [id])
+  quantity  Int
+  unitPrice Float
+  note      String?
+}
+
+model Delivery {
+  id             String         @id @default(uuid())
+  orderId        String         @unique
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  delivererId    String?
+  deliverer      User?          @relation("DelivererDeliveries", fields: [delivererId], references: [id])
+  deliveryAddress String
+  status         DeliveryStatus @default(ASSIGNED)
+  paymentMethod  PaymentMethod  @default(CREDIT_CARD)
+  isPaid         Boolean        @default(false)
+  deliveryFee    Float          @default(0.0)
+  pickedAt       DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime       @default(now())
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rating     Int      // De 1 à 5
+  comment    String?
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }
