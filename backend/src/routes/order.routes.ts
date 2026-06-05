@@ -6,7 +6,11 @@ import {
   updateOrderStatus,
   getAvailableDeliveries,
   acceptDelivery,
-  updateDeliveryStatus
+  updateDeliveryStatus,
+  getOrderMessages,
+  assignDeliverer,
+  cancelDelivery,
+  confirmDelivery
 } from '../controllers/order.controller'
 import { authenticateJWT, authorizeRoles } from '../middlewares/auth.middleware'
 import { Role } from '@prisma/client'
@@ -27,6 +31,12 @@ router.get('/all', authenticateJWT, authorizeRoles(Role.ADMIN, Role.DELIVERER), 
 // Le restaurant (ADMIN) peut changer le statut de préparation de la commande
 router.patch('/:id/status', authenticateJWT, authorizeRoles(Role.ADMIN), updateOrderStatus)
 
+// Le client (CLIENT) ou ADMIN peut confirmer la réception de la commande
+router.patch('/:id/confirm', authenticateJWT, authorizeRoles(Role.CLIENT, Role.ADMIN), confirmDelivery)
+
+// Récupérer l'historique des messages d'une commande (tous les utilisateurs authentifiés)
+router.get('/:id/messages', authenticateJWT, getOrderMessages)
+
 
 // --- ROUTES LIVRAISONS (DELIVERIES) ---
 
@@ -36,7 +46,13 @@ router.get('/deliveries/available', authenticateJWT, authorizeRoles(Role.DELIVER
 // Un livreur (ou admin pour tester) peut accepter une livraison
 router.post('/deliveries/:id/accept', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), acceptDelivery)
 
-// Un livreur peut mettre à jour le statut ou le paiement d'une livraison
+// Un livreur ou admin peut mettre à jour le statut ou le paiement d'une livraison
 router.patch('/deliveries/:id/status', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), updateDeliveryStatus)
+
+// Un admin peut assigner un livreur à une livraison
+router.patch('/deliveries/:id/assign', authenticateJWT, authorizeRoles(Role.ADMIN), assignDeliverer)
+
+// Un livreur (s'il est assigné) ou un admin peut annuler la livraison
+router.patch('/deliveries/:id/cancel', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), cancelDelivery)
 
 export default router

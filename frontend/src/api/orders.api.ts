@@ -106,3 +106,26 @@ export const updateDeliveryStatus = async (
   })
   return res.data
 }
+
+export interface Message {
+  id: string
+  orderId: string
+  senderId: string
+  content: string
+  createdAt: string
+  sender: {
+    id: string
+    name: string
+    role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
+  }
+}
+
+export const getOrderMessages = async (orderId: string): Promise<Message[]> => {
+  const res = await axiosClient.get<Message[]>(`/orders/${orderId}/messages`)
+  return res.data
+}
+
+export const confirmDelivery = async (orderId: string): Promise<Order> => {
+  const res = await axiosClient.patch<Order>(`/orders/${orderId}/confirm`)
+  return res.data
+}

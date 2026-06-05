@@ -2,6 +2,7 @@ import { Response } from 'express'
 import { AuthenticatedRequest } from '../middlewares/auth.middleware'
 import { prisma } from '../index'
 import { OrderStatus, DeliveryStatus, Role, PaymentMethod } from '@prisma/client'
+import { notifyOrderStatusUpdate, notifyDeliveryAssigned } from '../socket'
 
 // --- COMMANDES (ORDERS) ---
 
@@ -98,7 +99,11 @@ export const getMyOrders = async (req: AuthenticatedRequest, res: Response) => {
       where: whereClause,
       include: {
         items: { include: { item: true } },
-        delivery: true
+        delivery: {
+          include: {
+            deliverer: { select: { id: true, name: true, phone: true } }
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -113,11 +118,29 @@ export const getMyOrders = async (req: AuthenticatedRequest, res: Response) => {
 // 3. Récupérer toutes les commandes (ADMIN ou LIVREUR)
 export const getAllOrders = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
+
+    let whereClause: any = {}
+    
+    // Si c'est un livreur, il ne doit voir que SES propres livraisons/commandes.
+    if (req.user.role === Role.DELIVERER) {
+      whereClause = {
+        delivery: {
+          delivererId: req.user.id
+        }
+      }
+    }
+
     const orders = await prisma.order.findMany({
+      where: whereClause,
       include: {
         customer: { select: { id: true, name: true, email: true, phone: true } },
         items: { include: { item: true } },
-        delivery: true
+        delivery: {
+          include: {
+            deliverer: { select: { id: true, name: true, email: true, phone: true } }
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -145,6 +168,9 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
       data: { status: status as OrderStatus },
       include: { delivery: true }
     })
+
+    // Émettre l'événement temps réel
+    notifyOrderStatusUpdate(orderId, status as string)
 
     return res.json(updatedOrder)
   } catch (error: any) {
@@ -192,6 +218,12 @@ export const acceptDelivery = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ error: 'Cette livraison est déjà prise en charge par un autre livreur.' })
     }
 
+    const deliverer = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { name: true }
+    })
+    const delivererName = deliverer?.name || 'Livreur'
+
     // Assigner le livreur et mettre à jour le statut de la commande liée
     const updatedDelivery = await prisma.delivery.update({
       where: { id: deliveryId },
@@ -205,6 +237,10 @@ export const acceptDelivery = async (req: AuthenticatedRequest, res: Response) =
       where: { id: updatedDelivery.orderId },
       data: { status: OrderStatus.DELIVERING }
     })
+
+    // Émettre les événements temps réel
+    notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERING)
+    notifyDeliveryAssigned(updatedDelivery.orderId, req.user.id, delivererName)
 
     return res.json(updatedDelivery)
   } catch (error: any) {
@@ -255,11 +291,194 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
         where: { id: updatedDelivery.orderId },
         data: { status: OrderStatus.DELIVERED }
       })
+      notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERING)
+    } else if (status === DeliveryStatus.PICKED_UP) {
+      notifyOrderStatusUpdate(updatedDelivery.orderId, 'PICKED_UP')
     }
 
     return res.json(updatedDelivery)
   } catch (error: any) {
     console.error('Erreur updateDeliveryStatus:', error)
     return res.status(500).json({ error: 'Impossible de modifier la livraison.' })
+  }
+}
+
+// 4. Récupérer l'historique des messages d'une commande
+export const getOrderMessages = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const orderId = String(id)
+
+    // Vérifier si la commande existe
+    const order = await prisma.order.findUnique({
+      where: { id: orderId }
+    })
+
+    if (!order) {
+      return res.status(404).json({ error: 'Commande non trouvée.' })
+    }
+
+    // Récupérer les messages associés
+    const messages = await prisma.message.findMany({
+      where: { orderId },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            role: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    })
+
+    return res.json(messages)
+  } catch (error: any) {
+    console.error('Erreur getOrderMessages:', error)
+    return res.status(500).json({ error: 'Impossible de récupérer les messages.' })
+  }
+}
+
+// 5. Assigner un livreur manuellement (ADMIN uniquement)
+export const assignDeliverer = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== Role.ADMIN) {
+      return res.status(403).json({ error: 'Accès interdit. Rôle ADMIN requis.' })
+    }
+
+    const { id } = req.params // deliveryId
+    const { delivererId } = req.body
+
+    if (!delivererId) {
+      return res.status(400).json({ error: 'delivererId est requis.' })
+    }
+
+    const deliverer = await prisma.user.findUnique({
+      where: { id: delivererId }
+    })
+
+    if (!deliverer || deliverer.role !== Role.DELIVERER) {
+      return res.status(400).json({ error: 'Le rôle de l\'utilisateur spécifié doit être DELIVERER.' })
+    }
+
+    const delivery = await prisma.delivery.findUnique({
+      where: { id }
+    })
+
+    if (!delivery) {
+      return res.status(404).json({ error: 'Livraison non trouvée.' })
+    }
+
+    const updatedDelivery = await prisma.delivery.update({
+      where: { id },
+      data: {
+        delivererId,
+        status: DeliveryStatus.ASSIGNED
+      }
+    })
+
+    await prisma.order.update({
+      where: { id: delivery.orderId },
+      data: { status: OrderStatus.DELIVERING }
+    })
+
+    // Émettre les événements temps réel
+    notifyOrderStatusUpdate(delivery.orderId, OrderStatus.DELIVERING)
+    notifyDeliveryAssigned(delivery.orderId, delivererId, deliverer.name)
+
+    return res.json(updatedDelivery)
+  } catch (error: any) {
+    console.error('Erreur assignDeliverer:', error)
+    return res.status(500).json({ error: 'Impossible d\'assigner le livreur.' })
+  }
+}
+
+// 6. Annuler la livraison (ADMIN ou LIVREUR assigné)
+export const cancelDelivery = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
+
+    const { id } = req.params // deliveryId
+
+    const delivery = await prisma.delivery.findUnique({
+      where: { id }
+    })
+
+    if (!delivery) {
+      return res.status(404).json({ error: 'Livraison non trouvée.' })
+    }
+
+    if (req.user.role !== Role.ADMIN && delivery.delivererId !== req.user.id) {
+      return res.status(403).json({ error: 'Accès interdit. Non autorisé à annuler cette livraison.' })
+    }
+
+    const updatedDelivery = await prisma.delivery.update({
+      where: { id },
+      data: {
+        status: DeliveryStatus.CANCELLED,
+        delivererId: null
+      }
+    })
+
+    await prisma.order.update({
+      where: { id: delivery.orderId },
+      data: { status: OrderStatus.READY }
+    })
+
+    // Émettre l'événement temps réel
+    notifyOrderStatusUpdate(delivery.orderId, OrderStatus.READY)
+
+    return res.json(updatedDelivery)
+  } catch (error: any) {
+    console.error('Erreur cancelDelivery:', error)
+    return res.status(500).json({ error: 'Impossible d\'annuler la livraison.' })
+  }
+}
+
+// 7. Confirmer la réception de la commande (CLIENT uniquement)
+export const confirmDelivery = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
+
+    const { id } = req.params // orderId
+    const orderId = String(id)
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { delivery: true }
+    })
+
+    if (!order) {
+      return res.status(404).json({ error: 'Commande non trouvée.' })
+    }
+
+    if (order.customerId !== req.user.id && req.user.role !== Role.ADMIN) {
+      return res.status(403).json({ error: 'Accès interdit. Seul le client de cette commande peut confirmer la réception.' })
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.DELIVERED }
+    })
+
+    if (order.delivery) {
+      await prisma.delivery.update({
+        where: { id: order.delivery.id },
+        data: {
+          status: DeliveryStatus.DELIVERED,
+          isPaid: true,
+          deliveredAt: new Date()
+        }
+      })
+    }
+
+    // Émettre l'événement temps réel
+    notifyOrderStatusUpdate(orderId, OrderStatus.DELIVERED)
+
+    return res.json(updatedOrder)
+  } catch (error: any) {
+    console.error('Erreur confirmDelivery:', error)
+    return res.status(500).json({ error: 'Impossible de confirmer la réception de la livraison.' })
   }
 }

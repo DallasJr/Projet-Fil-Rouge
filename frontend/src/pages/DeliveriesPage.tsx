@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
-import { Truck, MapPin, CheckCircle, XCircle, Package, Clock, AlertCircle, RefreshCw } from 'lucide-react'
+import { Truck, MapPin, CheckCircle, XCircle, Package, Clock, AlertCircle, RefreshCw, MessageSquare } from 'lucide-react'
 import { getAvailableDeliveries, acceptDelivery, updateDeliveryStatus, getMyOrders } from '../api/orders.api'
 import type { Delivery, DeliveryStatus, Order } from '../api/orders.api'
+import { cancelDelivery } from '../api/admin.api'
 import { useAuth } from '../contexts/AuthContext'
+import { ChatWindow } from '../components/ChatWindow'
 
 const deliveryStatusConfig: Record<DeliveryStatus, { label: string; icon: ReactElement; className: string }> = {
   ASSIGNED:   { label: 'Assignée',         icon: <Clock size={13} />,       className: 'status-pending' },
@@ -20,6 +22,7 @@ const DeliveriesPage = () => {
   const [error, setError] = useState('')
   const [actionId, setActionId] = useState<string | null>(null)
   const [tab, setTab] = useState<'available' | 'mine'>('available')
+  const [activeChatOrderId, setActiveChatOrderId] = useState<string | null>(null)
 
   const fetchAll = async () => {
     setIsLoading(true)
@@ -60,6 +63,21 @@ const DeliveriesPage = () => {
       await fetchAll()
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erreur lors de la mise à jour.')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const handleCancelDelivery = async (deliveryId: string) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir annuler la livraison de cette commande ? Elle redeviendra disponible pour les autres livreurs.')) {
+      return
+    }
+    setActionId(deliveryId)
+    try {
+      await cancelDelivery(deliveryId)
+      await fetchAll()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de l\'annulation de la livraison.')
     } finally {
       setActionId(null)
     }
@@ -162,7 +180,7 @@ const DeliveriesPage = () => {
                   <div className="delivery-meta">
                     <span>Total commande : <strong>{order.totalAmount.toFixed(2)} €</strong></span>
                   </div>
-                  <div className="action-buttons" style={{ marginTop: '0.75rem' }}>
+                  <div className="action-buttons" style={{ marginTop: '0.75rem', gap: '8px', flexWrap: 'wrap' }}>
                     {delivery.status === 'ASSIGNED' && (
                       <button id={`pickup-${delivery.id}`} className="btn btn-primary btn-sm" onClick={() => handleStatusUpdate(delivery.id, 'PICKED_UP')} disabled={actionId === delivery.id}>
                         {actionId === delivery.id ? <span className="btn-spinner"></span> : '📦 Commande récupérée'}
@@ -173,12 +191,35 @@ const DeliveriesPage = () => {
                         {actionId === delivery.id ? <span className="btn-spinner"></span> : '✅ Livraison effectuée'}
                       </button>
                     )}
+                    {delivery.status !== 'DELIVERED' && delivery.status !== 'CANCELLED' && (
+                      <button className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => setActiveChatOrderId(order.id)}>
+                        <MessageSquare size={13} /> Chat Client
+                      </button>
+                    )}
+                    {(delivery.status === 'ASSIGNED' || delivery.status === 'PICKED_UP') && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleCancelDelivery(delivery.id)}
+                        disabled={actionId === delivery.id}
+                      >
+                        Annuler la livraison
+                      </button>
+                    )}
                   </div>
                 </div>
               )
             })}
           </div>
         )
+      )}
+
+      {/* Modal Chat Live */}
+      {activeChatOrderId && (
+        <div className="modal-backdrop" onClick={() => setActiveChatOrderId(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 0, maxWidth: '400px', width: '90%' }}>
+            <ChatWindow orderId={activeChatOrderId} onClose={() => setActiveChatOrderId(null)} />
+          </div>
+        </div>
       )}
     </div>
   )
