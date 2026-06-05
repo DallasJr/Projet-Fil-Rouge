@@ -12,6 +12,7 @@ import authRoutes from './routes/auth.routes'
 import menuRoutes from './routes/menu.routes'
 import orderRoutes from './routes/order.routes'
 import adminRoutes from './routes/admin.routes'
+import notificationRoutes from './routes/notification.routes'
 
 // Utilisation de pg native pour l'adapter Prisma
 const pool = new pg.Pool({
@@ -33,6 +34,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/menu', menuRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 app.get('/health', async (req, res) => {
   try {

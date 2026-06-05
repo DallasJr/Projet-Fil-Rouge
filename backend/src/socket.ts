@@ -50,6 +50,11 @@ export const initSocket = (server: HTTPServer) => {
   io.on('connection', (socket: AuthenticatedSocket) => {
     console.log(`🔌 Nouveau client connecté au Socket : ${socket.user?.email} (${socket.user?.role})`)
 
+    if (socket.user?.id) {
+      socket.join(`user:${socket.user.id}`)
+      console.log(`👤 L'utilisateur a rejoint son salon de notification personnel : user:${socket.user.id}`)
+    }
+
     // Rejoindre un salon de commande
     socket.on('join_order', (orderId: string) => {
       socket.join(`order:${orderId}`)
@@ -113,4 +118,10 @@ export const notifyDeliveryAssigned = (orderId: string, delivererId: string, del
   if (!io) return
   console.log(`📢 Diffusion de l'assignation du livreur ${delivererName} pour la commande ${orderId}`)
   io.to(`order:${orderId}`).emit('delivery_assigned', { orderId, delivererId, delivererName })
+}
+
+export const sendSocketNotification = (userId: string, notification: any) => {
+  if (!io) return
+  console.log(`📢 Envoi d'une notification socket à l'utilisateur ${userId}`)
+  io.to(`user:${userId}`).emit('new_notification', notification)
 }
