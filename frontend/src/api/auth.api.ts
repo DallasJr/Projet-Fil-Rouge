@@ -19,6 +19,7 @@ export interface AuthUser {
   email: string
   role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
   phone?: string | null
+  isAvailable?: boolean
 }
 
 export interface AuthResponse {
@@ -38,5 +39,10 @@ export const register = async (data: RegisterPayload): Promise<AuthResponse> => 
 
 export const getProfile = async (): Promise<AuthUser & { createdAt: string }> => {
   const res = await axiosClient.get<AuthUser & { createdAt: string }>('/auth/me')
+  return res.data
+}
+
+export const updateAvailability = async (isAvailable: boolean): Promise<AuthUser> => {
+  const res = await axiosClient.patch<AuthUser>('/auth/availability', { isAvailable })
   return res.data
 }

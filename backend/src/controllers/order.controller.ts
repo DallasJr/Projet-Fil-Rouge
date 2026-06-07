@@ -2,7 +2,8 @@ import { Response } from 'express'
 import { AuthenticatedRequest } from '../middlewares/auth.middleware'
 import { prisma } from '../index'
 import { OrderStatus, DeliveryStatus, Role, PaymentMethod } from '@prisma/client'
-import { notifyOrderStatusUpdate, notifyDeliveryAssigned } from '../socket'
+// Rechargement du client Prisma après migration
+import { notifyOrderStatusUpdate, notifyDeliveryAssigned, notifyOrderCreated } from '../socket'
 import { createAndSendNotification } from './notification.controller'
 
 // --- COMMANDES (ORDERS) ---
@@ -89,6 +90,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
         order.id
       )
     }
+
+    // Notifier en temps réel via Socket
+    notifyOrderCreated(order)
 
     return res.status(201).json(order)
   } catch (error: any) {
@@ -262,17 +266,14 @@ export const acceptDelivery = async (req: AuthenticatedRequest, res: Response) =
       where: { id: deliveryId },
       data: {
         delivererId: req.user.id,
-        status: DeliveryStatus.ASSIGNED
+        status: DeliveryStatus.ASSIGNED,
+        confirmedByDeliverer: false,
+        confirmedByCustomer: false
       }
     })
 
-    await prisma.order.update({
-      where: { id: updatedDelivery.orderId },
-      data: { status: OrderStatus.DELIVERING }
-    })
-
-    // Émettre les événements temps réel
-    notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERING)
+    // Émettre les événements temps réel (le statut général reste READY tant qu'il n'est pas récupéré)
+    notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.READY)
     notifyDeliveryAssigned(updatedDelivery.orderId, req.user.id, delivererName)
 
     // Notifier le client de la prise en charge de la livraison
@@ -314,12 +315,28 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
     }
 
     const updatedData: any = {}
+    let isFullyDelivered = false
+
     if (status && Object.values(DeliveryStatus).includes(status)) {
-      updatedData.status = status as DeliveryStatus
       if (status === DeliveryStatus.PICKED_UP) {
+        updatedData.status = DeliveryStatus.PICKED_UP
         updatedData.pickedAt = new Date()
       } else if (status === DeliveryStatus.DELIVERED) {
-        updatedData.deliveredAt = new Date()
+        // Le livreur déclare avoir livré
+        updatedData.confirmedByDeliverer = true
+        
+        // Si le client a déjà validé, on clôture définitivement la livraison
+        if (delivery.confirmedByCustomer) {
+          updatedData.status = DeliveryStatus.DELIVERED
+          updatedData.deliveredAt = new Date()
+          updatedData.isPaid = true
+          isFullyDelivered = true
+        }
+      } else if (status === DeliveryStatus.CANCELLED) {
+        updatedData.status = DeliveryStatus.CANCELLED
+        updatedData.delivererId = null
+        updatedData.confirmedByDeliverer = false
+        updatedData.confirmedByCustomer = false
       }
     }
 
@@ -332,15 +349,23 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
       data: updatedData
     })
 
-    // Si livré, mettre également à jour le statut de la commande générale
-    if (status === DeliveryStatus.DELIVERED) {
+    // Si livré définitivement par les deux validations
+    if (isFullyDelivered) {
       await prisma.order.update({
         where: { id: updatedDelivery.orderId },
         data: { status: OrderStatus.DELIVERED }
       })
-      notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERING)
+      notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERED)
     } else if (status === DeliveryStatus.PICKED_UP) {
-      notifyOrderStatusUpdate(updatedDelivery.orderId, 'PICKED_UP')
+      // Devient véritablement "En livraison"
+      await prisma.order.update({
+        where: { id: updatedDelivery.orderId },
+        data: { status: OrderStatus.DELIVERING }
+      })
+      notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERING)
+    } else if (status === DeliveryStatus.DELIVERED) {
+      // Statut intermédiaire : attend la validation du client
+      notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERING)
     }
 
     // Notifier le client de la mise à jour du statut de la livraison
@@ -353,15 +378,23 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
       if (status === DeliveryStatus.PICKED_UP) {
         await createAndSendNotification(
           order.customerId,
-          `Votre commande #${orderShortId} est en cours de livraison.`,
+          `Votre commande #${orderShortId} est en cours de livraison (le livreur l'a récupérée).`,
           updatedDelivery.orderId
         )
       } else if (status === DeliveryStatus.DELIVERED) {
-        await createAndSendNotification(
-          order.customerId,
-          `Votre commande #${orderShortId} a été livrée.`,
-          updatedDelivery.orderId
-        )
+        if (isFullyDelivered) {
+          await createAndSendNotification(
+            order.customerId,
+            `Votre commande #${orderShortId} a été confirmée et livrée !`,
+            updatedDelivery.orderId
+          )
+        } else {
+          await createAndSendNotification(
+            order.customerId,
+            `Le livreur a indiqué avoir livré votre commande #${orderShortId}. Veuillez confirmer la réception.`,
+            updatedDelivery.orderId
+          )
+        }
       }
     }
 
@@ -416,7 +449,7 @@ export const assignDeliverer = async (req: AuthenticatedRequest, res: Response) 
       return res.status(403).json({ error: 'Accès interdit. Rôle ADMIN requis.' })
     }
 
-    const { id } = req.params // deliveryId
+    const deliveryId = String(req.params.id)
     const { delivererId } = req.body
 
     if (!delivererId) {
@@ -424,7 +457,7 @@ export const assignDeliverer = async (req: AuthenticatedRequest, res: Response) 
     }
 
     const deliverer = await prisma.user.findUnique({
-      where: { id: delivererId }
+      where: { id: String(delivererId) }
     })
 
     if (!deliverer || deliverer.role !== Role.DELIVERER) {
@@ -432,7 +465,7 @@ export const assignDeliverer = async (req: AuthenticatedRequest, res: Response) 
     }
 
     const delivery = await prisma.delivery.findUnique({
-      where: { id },
+      where: { id: deliveryId },
       include: { order: true }
     })
 
@@ -441,26 +474,23 @@ export const assignDeliverer = async (req: AuthenticatedRequest, res: Response) 
     }
 
     const updatedDelivery = await prisma.delivery.update({
-      where: { id },
+      where: { id: deliveryId },
       data: {
-        delivererId,
-        status: DeliveryStatus.ASSIGNED
+        delivererId: String(delivererId),
+        status: DeliveryStatus.ASSIGNED,
+        confirmedByDeliverer: false,
+        confirmedByCustomer: false
       }
     })
 
-    await prisma.order.update({
-      where: { id: delivery.orderId },
-      data: { status: OrderStatus.DELIVERING }
-    })
-
-    // Émettre les événements temps réel
-    notifyOrderStatusUpdate(delivery.orderId, OrderStatus.DELIVERING)
-    notifyDeliveryAssigned(delivery.orderId, delivererId, deliverer.name)
+    // Émettre les événements temps réel (statut reste READY tant qu'il n'est pas récupéré par le livreur)
+    notifyOrderStatusUpdate(delivery.orderId, OrderStatus.READY)
+    notifyDeliveryAssigned(delivery.orderId, String(delivererId), deliverer.name)
 
     // Notifier le livreur et le client
     const orderShortId = delivery.orderId.slice(-6).toUpperCase()
     await createAndSendNotification(
-      delivererId,
+      String(delivererId),
       `Vous avez été assigné à la livraison de la commande #${orderShortId}.`,
       delivery.orderId
     )
@@ -482,10 +512,10 @@ export const cancelDelivery = async (req: AuthenticatedRequest, res: Response) =
   try {
     if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
 
-    const { id } = req.params // deliveryId
+    const cancelDeliveryId = String(req.params.id)
 
     const delivery = await prisma.delivery.findUnique({
-      where: { id },
+      where: { id: cancelDeliveryId },
       include: { order: true }
     })
 
@@ -498,7 +528,7 @@ export const cancelDelivery = async (req: AuthenticatedRequest, res: Response) =
     }
 
     const updatedDelivery = await prisma.delivery.update({
-      where: { id },
+      where: { id: cancelDeliveryId },
       data: {
         status: DeliveryStatus.CANCELLED,
         delivererId: null
@@ -549,45 +579,76 @@ export const confirmDelivery = async (req: AuthenticatedRequest, res: Response) 
       return res.status(403).json({ error: 'Accès interdit. Seul le client de cette commande peut confirmer la réception.' })
     }
 
-    const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: { status: OrderStatus.DELIVERED }
-    })
+    // Le client valide
+    let isFullyDelivered = false
 
     if (order.delivery) {
+      const updatedDeliveryData: any = {
+        confirmedByCustomer: true
+      }
+
+      // Si le livreur a déjà validé OU si aucun livreur n'est assigné (cas théorique)
+      if (order.delivery.confirmedByDeliverer || !order.delivery.delivererId) {
+        updatedDeliveryData.status = DeliveryStatus.DELIVERED
+        updatedDeliveryData.isPaid = true
+        updatedDeliveryData.deliveredAt = new Date()
+        isFullyDelivered = true
+      }
+
       await prisma.delivery.update({
         where: { id: order.delivery.id },
-        data: {
-          status: DeliveryStatus.DELIVERED,
-          isPaid: true,
-          deliveredAt: new Date()
-        }
+        data: updatedDeliveryData
       })
+    } else {
+      isFullyDelivered = true
     }
 
-    // Émettre l'événement temps réel
-    notifyOrderStatusUpdate(orderId, OrderStatus.DELIVERED)
+    let updatedOrder = order
+    if (isFullyDelivered) {
+      updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.DELIVERED },
+        include: { delivery: true }
+      })
+      // Émettre l'événement temps réel final
+      notifyOrderStatusUpdate(orderId, OrderStatus.DELIVERED)
+    } else {
+      // Émettre un événement pour forcer la mise à jour (toujours en DELIVERING)
+      notifyOrderStatusUpdate(orderId, OrderStatus.DELIVERING)
+    }
 
-    // Notifier le livreur et les admins
     const orderShortId = orderId.slice(-6).toUpperCase()
-    if (order.delivery && order.delivery.delivererId) {
-      await createAndSendNotification(
-        order.delivery.delivererId,
-        `Le client a validé la réception de la commande #${orderShortId}.`,
-        orderId
-      )
-    }
 
-    const admins = await prisma.user.findMany({
-      where: { role: Role.ADMIN },
-      select: { id: true }
-    })
-    for (const admin of admins) {
-      await createAndSendNotification(
-        admin.id,
-        `La commande #${orderShortId} a été confirmée et payée.`,
-        orderId
-      )
+    // Envoyer les notifications appropriées
+    if (isFullyDelivered) {
+      if (order.delivery && order.delivery.delivererId) {
+        await createAndSendNotification(
+          order.delivery.delivererId,
+          `Le client a validé la réception de la commande #${orderShortId}. Livraison finalisée.`,
+          orderId
+        )
+      }
+
+      const admins = await prisma.user.findMany({
+        where: { role: Role.ADMIN },
+        select: { id: true }
+      })
+      for (const admin of admins) {
+        await createAndSendNotification(
+          admin.id,
+          `La commande #${orderShortId} a été confirmée et payée.`,
+          orderId
+        )
+      }
+    } else {
+      // Notification au livreur comme quoi le client a validé mais on attend toujours sa confirmation
+      if (order.delivery && order.delivery.delivererId) {
+        await createAndSendNotification(
+          order.delivery.delivererId,
+          `Le client a validé la réception de la commande #${orderShortId}. En attente de votre validation de livraison.`,
+          orderId
+        )
+      }
     }
 
     return res.json(updatedOrder)

@@ -44,10 +44,10 @@ export const markAsRead = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
 
-    const { id } = req.params
+    const notificationId = String(req.params.id)
 
     const notification = await prisma.notification.findUnique({
-      where: { id }
+      where: { id: notificationId }
     })
 
     if (!notification) {
@@ -59,7 +59,7 @@ export const markAsRead = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const updated = await prisma.notification.update({
-      where: { id },
+      where: { id: notificationId },
       data: { isRead: true }
     })
 

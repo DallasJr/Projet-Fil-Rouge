@@ -5,6 +5,7 @@ import { getAllOrders, updateOrderStatus } from '../api/orders.api'
 import type { Order, OrderStatus } from '../api/orders.api'
 import { getAllUsers, assignDeliverer } from '../api/admin.api'
 import type { UserDetail } from '../api/admin.api'
+import { useSocket } from '../contexts/SocketContext'
 
 const statusConfig: Record<OrderStatus, { label: string; icon: ReactElement; className: string }> = {
   PENDING:    { label: 'En attente',     icon: <Clock size={13} />,        className: 'status-pending' },
@@ -24,6 +25,7 @@ const DashboardPage = () => {
   const [error, setError] = useState('')
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'ALL'>('ALL')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const { socket } = useSocket()
 
   // Modale d'assignation
   const [deliverers, setDeliverers] = useState<UserDetail[]>([])
@@ -46,6 +48,24 @@ const DashboardPage = () => {
 
   useEffect(() => { fetchOrders() }, [])
 
+  useEffect(() => {
+    if (!socket) return
+
+    const onOrderCreated = () => fetchOrders()
+    const onStatusUpdate = () => fetchOrders()
+    const onDeliveryAssigned = () => fetchOrders()
+
+    socket.on('order_created', onOrderCreated)
+    socket.on('order_status_updated', onStatusUpdate)
+    socket.on('delivery_assigned', onDeliveryAssigned)
+
+    return () => {
+      socket.off('order_created', onOrderCreated)
+      socket.off('order_status_updated', onStatusUpdate)
+      socket.off('delivery_assigned', onDeliveryAssigned)
+    }
+  }, [socket])
+
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     setUpdatingId(orderId)
     try {
@@ -63,7 +83,7 @@ const DashboardPage = () => {
     setIsAssignModalOpen(true)
     setIsLoadingDeliverers(true)
     try {
-      const data = await getAllUsers('DELIVERER')
+      const data = await getAllUsers('DELIVERER', true)
       setDeliverers(data)
     } catch {
       setError('Impossible de charger les livreurs.')

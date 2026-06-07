@@ -43,19 +43,17 @@ const OrdersPage = () => {
 
   // Écouter les changements de statut et les assignations en temps réel
   useEffect(() => {
-    if (socket) {
-      socket.on('order_status_updated', () => {
-        fetchOrders()
-      })
-      socket.on('delivery_assigned', () => {
-        fetchOrders()
-      })
-    }
+    if (!socket) return
+
+    const onStatusUpdate = () => fetchOrders()
+    const onDeliveryAssigned = () => fetchOrders()
+
+    socket.on('order_status_updated', onStatusUpdate)
+    socket.on('delivery_assigned', onDeliveryAssigned)
+
     return () => {
-      if (socket) {
-        socket.off('order_status_updated')
-        socket.off('delivery_assigned')
-      }
+      socket.off('order_status_updated', onStatusUpdate)
+      socket.off('delivery_assigned', onDeliveryAssigned)
     }
   }, [socket])
 
@@ -97,14 +95,33 @@ const OrdersPage = () => {
             const currentIdx = STATUS_TIMELINE.indexOf(order.status)
             const isCancelled = order.status === 'CANCELLED'
 
+            // Surcharger les statuts pour la livraison
+            let statusLabel = status.label
+            let statusClass = status.className
+            let statusIcon = status.icon
+
+            if (order.status === 'READY' && order.delivery && order.delivery.status === 'ASSIGNED') {
+              statusLabel = 'Livreur en route'
+              statusClass = 'status-preparing'
+              statusIcon = <Truck size={13} />
+            } else if (order.status === 'DELIVERING' && order.delivery) {
+              if (order.delivery.confirmedByDeliverer && !order.delivery.confirmedByCustomer) {
+                statusLabel = 'Livrée (à confirmer)'
+                statusClass = 'status-ready'
+              } else if (order.delivery.confirmedByCustomer && !order.delivery.confirmedByDeliverer) {
+                statusLabel = 'Reçue (attente livreur)'
+                statusClass = 'status-preparing'
+              }
+            }
+
             return (
               <div key={order.id} id={`order-${order.id}`} className="order-card">
                 <div className="order-card-header">
                   <div className="order-id">
                     Commande <span>#{order.id.slice(-6).toUpperCase()}</span>
                   </div>
-                  <span className={`status-badge ${status.className}`}>
-                    {status.icon} {status.label}
+                  <span className={`status-badge ${statusClass}`}>
+                    {statusIcon} {statusLabel}
                   </span>
                 </div>
 
@@ -114,10 +131,15 @@ const OrdersPage = () => {
                     {STATUS_TIMELINE.map((s, idx) => {
                       const isCompleted = idx <= currentIdx
                       const isCurrent = idx === currentIdx
+                      // Timeline text overrides
+                      let label = statusConfig[s].label
+                      if (s === 'READY' && order.delivery && order.delivery.status === 'ASSIGNED') {
+                        label = 'Livreur en route'
+                      }
                       return (
                         <div key={s} className={`timeline-step ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
                           <div className="timeline-dot"></div>
-                          <span className="timeline-label">{statusConfig[s].label}</span>
+                          <span className="timeline-label">{label}</span>
                         </div>
                       )
                     })}
@@ -138,12 +160,24 @@ const OrdersPage = () => {
                 {/* Livraison */}
                 {order.delivery && (
                   <div className="order-delivery-info" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <MapPin size={13} />
                       <span>{order.delivery.deliveryAddress}</span>
                       <span className={`status-badge ${order.delivery.status === 'DELIVERED' ? 'status-delivered' : 'status-preparing'}`}>
-                        {order.delivery.status}
+                        {order.delivery.status === 'ASSIGNED' ? 'Livreur assigné' : 
+                         order.delivery.status === 'PICKED_UP' ? 'En cours de livraison' : 
+                         order.delivery.status}
                       </span>
+                      {order.delivery.confirmedByDeliverer && !order.delivery.confirmedByCustomer && (
+                        <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '500' }}>
+                          ✓ Le livreur confirme le dépôt
+                        </span>
+                      )}
+                      {order.delivery.confirmedByCustomer && !order.delivery.confirmedByDeliverer && (
+                        <span style={{ fontSize: '11px', color: '#b45309', fontWeight: '500' }}>
+                          ⏳ En attente de confirmation du livreur
+                        </span>
+                      )}
                     </div>
                     {order.delivery.deliverer && (
                       <div style={{ fontSize: '13px', color: '#15803d', fontWeight: '500' }}>
@@ -176,7 +210,7 @@ const OrdersPage = () => {
                     </button>
                   )}
 
-                  {order.delivery && order.status === 'DELIVERING' && (
+                  {order.delivery && order.status === 'DELIVERING' && !order.delivery.confirmedByCustomer && (
                     <button 
                       className="btn btn-primary btn-sm" 
                       style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none' }}

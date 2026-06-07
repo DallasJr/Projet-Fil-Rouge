@@ -6,6 +6,7 @@ import type { Delivery, DeliveryStatus, Order } from '../api/orders.api'
 import { cancelDelivery } from '../api/admin.api'
 import { useAuth } from '../contexts/AuthContext'
 import { ChatWindow } from '../components/ChatWindow'
+import { useSocket } from '../contexts/SocketContext'
 
 const deliveryStatusConfig: Record<DeliveryStatus, { label: string; icon: ReactElement; className: string }> = {
   ASSIGNED:   { label: 'Assignée',         icon: <Clock size={13} />,       className: 'status-pending' },
@@ -16,6 +17,7 @@ const deliveryStatusConfig: Record<DeliveryStatus, { label: string; icon: ReactE
 
 const DeliveriesPage = () => {
   const { isAdmin } = useAuth()
+  const { socket } = useSocket()
   const [available, setAvailable] = useState<Delivery[]>([])
   const [myOrders, setMyOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -43,6 +45,24 @@ const DeliveriesPage = () => {
   }
 
   useEffect(() => { fetchAll() }, [])
+
+  useEffect(() => {
+    if (!socket) return
+
+    const onOrderCreated = () => fetchAll()
+    const onStatusUpdate = () => fetchAll()
+    const onDeliveryAssigned = () => fetchAll()
+
+    socket.on('order_created', onOrderCreated)
+    socket.on('order_status_updated', onStatusUpdate)
+    socket.on('delivery_assigned', onDeliveryAssigned)
+
+    return () => {
+      socket.off('order_created', onOrderCreated)
+      socket.off('order_status_updated', onStatusUpdate)
+      socket.off('delivery_assigned', onDeliveryAssigned)
+    }
+  }, [socket])
 
   const handleAccept = async (deliveryId: string) => {
     setActionId(deliveryId)
@@ -162,11 +182,24 @@ const DeliveriesPage = () => {
             {myOrders.filter(o => o.delivery).map((order) => {
               const delivery = order.delivery!
               const dStatus = deliveryStatusConfig[delivery.status]
+              
+              // Custom text status for deliverer
+              let label = dStatus.label
+              let className = dStatus.className
+              if (delivery.status === 'PICKED_UP') {
+                if (delivery.confirmedByDeliverer) {
+                  label = 'Livrée (attente client)'
+                  className = 'status-ready'
+                } else {
+                  label = 'Récupérée'
+                }
+              }
+
               return (
                 <div key={delivery.id} id={`my-delivery-${delivery.id}`} className="delivery-card">
                   <div className="delivery-card-header">
                     <div className="order-id">Commande <span>#{order.id.slice(-6).toUpperCase()}</span></div>
-                    <span className={`status-badge ${dStatus.className}`}>{dStatus.icon} {dStatus.label}</span>
+                    <span className={`status-badge ${className}`}>{dStatus.icon} {label}</span>
                   </div>
                   <div className="delivery-address"><MapPin size={15} /><span>{delivery.deliveryAddress}</span></div>
                   <div className="order-items-list">
@@ -177,8 +210,18 @@ const DeliveriesPage = () => {
                       </div>
                     ))}
                   </div>
-                  <div className="delivery-meta">
+                  <div className="delivery-meta" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                     <span>Total commande : <strong>{order.totalAmount.toFixed(2)} €</strong></span>
+                    {delivery.confirmedByCustomer && !delivery.confirmedByDeliverer && (
+                      <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '500' }}>
+                        ✓ Le client a déjà confirmé la réception
+                      </span>
+                    )}
+                    {delivery.confirmedByDeliverer && !delivery.confirmedByCustomer && (
+                      <span style={{ fontSize: '11px', color: '#b45309', fontWeight: '500' }}>
+                        ⏳ En attente de confirmation du client
+                      </span>
+                    )}
                   </div>
                   <div className="action-buttons" style={{ marginTop: '0.75rem', gap: '8px', flexWrap: 'wrap' }}>
                     {delivery.status === 'ASSIGNED' && (
@@ -186,10 +229,15 @@ const DeliveriesPage = () => {
                         {actionId === delivery.id ? <span className="btn-spinner"></span> : '📦 Commande récupérée'}
                       </button>
                     )}
-                    {delivery.status === 'PICKED_UP' && (
+                    {delivery.status === 'PICKED_UP' && !delivery.confirmedByDeliverer && (
                       <button id={`delivered-${delivery.id}`} className="btn btn-primary btn-sm" onClick={() => handleStatusUpdate(delivery.id, 'DELIVERED')} disabled={actionId === delivery.id}>
                         {actionId === delivery.id ? <span className="btn-spinner"></span> : '✅ Livraison effectuée'}
                       </button>
+                    )}
+                    {delivery.status === 'PICKED_UP' && delivery.confirmedByDeliverer && (
+                      <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: '500', padding: '4px 8px' }}>
+                        ⏳ En attente de validation client...
+                      </span>
                     )}
                     {delivery.status !== 'DELIVERED' && delivery.status !== 'CANCELLED' && (
                       <button className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => setActiveChatOrderId(order.id)}>

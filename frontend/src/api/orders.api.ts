@@ -31,7 +31,15 @@ export interface Delivery {
   isPaid: boolean
   pickedAt: string | null
   deliveredAt: string | null
+  confirmedByDeliverer: boolean
+  confirmedByCustomer: boolean
   delivererId: string | null
+  deliverer?: {
+    id: string
+    name: string
+    email?: string
+    phone?: string | null
+  } | null
 }
 
 export interface Order {

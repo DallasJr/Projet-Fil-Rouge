@@ -55,6 +55,11 @@ export const initSocket = (server: HTTPServer) => {
       console.log(`👤 L'utilisateur a rejoint son salon de notification personnel : user:${socket.user.id}`)
     }
 
+    if (socket.user?.role) {
+      socket.join(`role:${socket.user.role}`)
+      console.log(`👤 L'utilisateur a rejoint le salon de rôle : role:${socket.user.role}`)
+    }
+
     // Rejoindre un salon de commande
     socket.on('join_order', (orderId: string) => {
       socket.join(`order:${orderId}`)
@@ -108,16 +113,50 @@ export const initSocket = (server: HTTPServer) => {
 }
 
 // Fonction utilitaire pour envoyer des notifications ou statuts mis à jour
-export const notifyOrderStatusUpdate = (orderId: string, status: string) => {
+export const notifyOrderStatusUpdate = async (orderId: string, status: string) => {
   if (!io) return
   console.log(`📢 Diffusion du statut ${status} pour la commande ${orderId}`)
   io.to(`order:${orderId}`).emit('order_status_updated', { orderId, status })
+  // Notifier également les administrateurs et livreurs pour leurs dashboards
+  io.to('role:ADMIN').to('role:DELIVERER').emit('order_status_updated', { orderId, status })
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { customerId: true }
+    })
+    if (order) {
+      io.to(`user:${order.customerId}`).emit('order_status_updated', { orderId, status })
+    }
+  } catch (error) {
+    console.error('Erreur lors de la notification de statut à l\'utilisateur:', error)
+  }
 }
 
-export const notifyDeliveryAssigned = (orderId: string, delivererId: string, delivererName: string) => {
+export const notifyOrderCreated = (order: any) => {
+  if (!io) return
+  console.log(`📢 Nouvelle commande créée diffusée aux admins et livreurs : ${order.id}`)
+  io.to('role:ADMIN').to('role:DELIVERER').emit('order_created', order)
+}
+
+export const notifyDeliveryAssigned = async (orderId: string, delivererId: string, delivererName: string) => {
   if (!io) return
   console.log(`📢 Diffusion de l'assignation du livreur ${delivererName} pour la commande ${orderId}`)
   io.to(`order:${orderId}`).emit('delivery_assigned', { orderId, delivererId, delivererName })
+  // Notifier également les admins et livreurs pour leurs dashboards
+  io.to('role:ADMIN').to('role:DELIVERER').emit('delivery_assigned', { orderId, delivererId, delivererName })
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { customerId: true }
+    })
+    if (order) {
+      io.to(`user:${order.customerId}`).emit('delivery_assigned', { orderId, delivererId, delivererName })
+    }
+  } catch (error) {
+    console.error('Erreur lors de la notification d\'assignation à l\'utilisateur:', error)
+  }
 }
 
 export const sendSocketNotification = (userId: string, notification: any) => {

@@ -4,7 +4,8 @@ import { ShoppingBag, UtensilsCrossed, LayoutDashboard, LogOut, User, Truck, Set
 import { useAuth } from '../contexts/AuthContext'
 import { useSocket } from '../contexts/SocketContext'
 import { useToast } from '../contexts/ToastContext'
-import { getMyNotifications, markAsRead, markAllAsRead, NotificationDetail } from '../api/notifications.api'
+import { getMyNotifications, markAsRead, markAllAsRead } from '../api/notifications.api'
+import type { NotificationDetail } from '../api/notifications.api'
 
 const Navbar = () => {
   const { user, isAdmin, isDeliverer, logout } = useAuth()

@@ -45,6 +45,7 @@ model User {
   password         String
   phone            String?
   role             Role              @default(CLIENT)
+  isAvailable      Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   
@@ -54,6 +55,7 @@ model User {
   addresses        Address[]
   reviews          Review[]
   notifications    Notification[]
+  messages         Message[]
 }
 
 model Address {
@@ -127,6 +129,7 @@ model Order {
   delivery      Delivery?
   reviews       Review[]
   notifications Notification[]
+  messages      Message[]
 }
 
 model OrderItem {
@@ -153,6 +156,8 @@ model Delivery {
   deliveryFee    Float          @default(0.0)
   pickedAt       DateTime?
   deliveredAt    DateTime?
+  confirmedByDeliverer Boolean  @default(false)
+  confirmedByCustomer  Boolean  @default(false)
   createdAt      DateTime       @default(now())
 }
 
@@ -175,5 +180,15 @@ model Notification {
   order      Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   message    String
   isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content    String
   createdAt  DateTime @default(now())
 }

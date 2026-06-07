@@ -7,11 +7,14 @@ import { Role } from '@prisma/client'
 // 1. Lister tous les utilisateurs
 export const getAllUsers = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { role } = req.query
+    const { role, isAvailable } = req.query
     
     let whereClause: any = {}
     if (role && Object.values(Role).includes(role as Role)) {
       whereClause.role = role as Role
+    }
+    if (isAvailable !== undefined) {
+      whereClause.isAvailable = isAvailable === 'true'
     }
 
     const users = await prisma.user.findMany({
@@ -22,6 +25,7 @@ export const getAllUsers = async (req: AuthenticatedRequest, res: Response) => {
         name: true,
         phone: true,
         role: true,
+        isAvailable: true,
         createdAt: true
       },
       orderBy: { createdAt: 'desc' }
@@ -81,13 +85,13 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
 
-    const { id } = req.params
+    const userId = String(req.params.id)
 
-    if (id === req.user.id) {
+    if (userId === req.user.id) {
       return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte.' })
     }
 
-    const userToDelete = await prisma.user.findUnique({ where: { id } })
+    const userToDelete = await prisma.user.findUnique({ where: { id: userId } })
     if (!userToDelete) {
       return res.status(404).json({ error: 'Utilisateur non trouvé.' })
     }
@@ -97,7 +101,7 @@ export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(403).json({ error: 'Accès interdit. Impossible de supprimer un compte administrateur.' })
     }
 
-    await prisma.user.delete({ where: { id } })
+    await prisma.user.delete({ where: { id: userId } })
 
     return res.json({ message: 'Utilisateur supprimé avec succès.' })
   } catch (error: any) {
