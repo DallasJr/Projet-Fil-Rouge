@@ -158,6 +158,12 @@ model Delivery {
   deliveredAt    DateTime?
   confirmedByDeliverer Boolean  @default(false)
   confirmedByCustomer  Boolean  @default(false)
+  // Lot 2 — GPS & Géolocalisation
+  delivererLat   Float?         // Latitude actuelle du livreur (mis à jour en temps réel)
+  delivererLng   Float?         // Longitude actuelle du livreur
+  destLat        Float?         // Latitude destination (géocodée à la création)
+  destLng        Float?         // Longitude destination
+  estimatedTime  Int?           // ETA en minutes (calculé par Haversine)
   createdAt      DateTime       @default(now())
 }
 

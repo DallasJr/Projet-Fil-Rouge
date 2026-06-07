@@ -10,7 +10,8 @@ import {
   getOrderMessages,
   assignDeliverer,
   cancelDelivery,
-  confirmDelivery
+  confirmDelivery,
+  updateDelivererLocation
 } from '../controllers/order.controller'
 import { authenticateJWT, authorizeRoles } from '../middlewares/auth.middleware'
 import { Role } from '@prisma/client'
@@ -54,5 +55,8 @@ router.patch('/deliveries/:id/assign', authenticateJWT, authorizeRoles(Role.ADMI
 
 // Un livreur (s'il est assigné) ou un admin peut annuler la livraison
 router.patch('/deliveries/:id/cancel', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), cancelDelivery)
+
+// Lot 2 — Mise à jour de la position GPS du livreur en temps réel
+router.patch('/deliveries/:id/location', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), updateDelivererLocation)
 
 export default router

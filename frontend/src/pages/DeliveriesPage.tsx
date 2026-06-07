@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
 import { Truck, MapPin, CheckCircle, XCircle, Package, Clock, AlertCircle, RefreshCw, MessageSquare } from 'lucide-react'
-import { getAvailableDeliveries, acceptDelivery, updateDeliveryStatus, getMyOrders } from '../api/orders.api'
+import { getAvailableDeliveries, acceptDelivery, updateDeliveryStatus, getMyOrders, updateDelivererLocation } from '../api/orders.api'
 import type { Delivery, DeliveryStatus, Order } from '../api/orders.api'
 import { cancelDelivery } from '../api/admin.api'
 import { useAuth } from '../contexts/AuthContext'
 import { ChatWindow } from '../components/ChatWindow'
 import { useSocket } from '../contexts/SocketContext'
+import { DeliveryMap } from '../components/DeliveryMap'
 
 const deliveryStatusConfig: Record<DeliveryStatus, { label: string; icon: ReactElement; className: string }> = {
   ASSIGNED:   { label: 'Assignée',         icon: <Clock size={13} />,       className: 'status-pending' },
@@ -25,6 +26,12 @@ const DeliveriesPage = () => {
   const [actionId, setActionId] = useState<string | null>(null)
   const [tab, setTab] = useState<'available' | 'mine'>('available')
   const [activeChatOrderId, setActiveChatOrderId] = useState<string | null>(null)
+  
+  // GPS & Simulation States
+  const [simulatingDeliveryId, setSimulatingDeliveryId] = useState<string | null>(null)
+  const [simulationIntervalId, setSimulationIntervalId] = useState<any | null>(null)
+  const [watchPositionId, setWatchPositionId] = useState<number | null>(null)
+  const [trackingOrder, setTrackingOrder] = useState<Order | null>(null)
 
   const fetchAll = async () => {
     setIsLoading(true)
@@ -102,6 +109,122 @@ const DeliveriesPage = () => {
       setActionId(null)
     }
   }
+
+  // GPS Tracking Controls
+  const startSimulation = async (order: Order) => {
+    if (!order.delivery) return
+    const deliveryId = order.delivery.id
+    
+    const startLat = 48.8566
+    const startLng = 2.3522
+    const endLat = order.delivery.destLat || 48.8666
+    const endLng = order.delivery.destLng || 2.3622
+    
+    stopTracking()
+    setSimulatingDeliveryId(deliveryId)
+    
+    let step = 0
+    const totalSteps = 10
+    
+    const interval = setInterval(async () => {
+      step++
+      if (step > totalSteps) {
+        clearInterval(interval)
+        setSimulationIntervalId(null)
+        setSimulatingDeliveryId(null)
+        alert("Simulation terminée !")
+        return
+      }
+      
+      const currentLat = startLat + (endLat - startLat) * (step / totalSteps)
+      const currentLng = startLng + (endLng - startLng) * (step / totalSteps)
+      
+      try {
+        const updatedDelivery = await updateDelivererLocation(deliveryId, currentLat, currentLng)
+        const updatedOrder: Order = {
+          ...order,
+          delivery: {
+            ...order.delivery!,
+            delivererLat: currentLat,
+            delivererLng: currentLng,
+            estimatedTime: updatedDelivery.estimatedTime
+          }
+        }
+        
+        // Update local states
+        setMyOrders(prev => prev.map(o => o.delivery?.id === deliveryId ? updatedOrder : o))
+        setTrackingOrder(current => current?.delivery?.id === deliveryId ? updatedOrder : current)
+      } catch (err) {
+        console.error("Erreur simulation GPS", err)
+      }
+    }, 3000)
+    
+    setSimulationIntervalId(interval)
+  }
+
+  const startRealGPS = (order: Order) => {
+    if (!order.delivery) return
+    const deliveryId = order.delivery.id
+    
+    stopTracking()
+    
+    if (!navigator.geolocation) {
+      alert("La géolocalisation n'est pas supportée par votre navigateur.")
+      return
+    }
+    
+    setSimulatingDeliveryId(deliveryId)
+    
+    const watchId = navigator.geolocation.watchPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        try {
+          const updatedDelivery = await updateDelivererLocation(deliveryId, latitude, longitude)
+          const updatedOrder: Order = {
+            ...order,
+            delivery: {
+              ...order.delivery!,
+              delivererLat: latitude,
+              delivererLng: longitude,
+              estimatedTime: updatedDelivery.estimatedTime
+            }
+          }
+          
+          setMyOrders(prev => prev.map(o => o.delivery?.id === deliveryId ? updatedOrder : o))
+          setTrackingOrder(current => current?.delivery?.id === deliveryId ? updatedOrder : current)
+        } catch (err) {
+          console.error("Erreur GPS réel", err)
+        }
+      },
+      (error) => {
+        console.error("Erreur de géolocalisation", error)
+        alert(`Erreur de géolocalisation: ${error.message}`)
+        stopTracking()
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+    
+    setWatchPositionId(watchId)
+  }
+
+  const stopTracking = () => {
+    if (simulationIntervalId) {
+      clearInterval(simulationIntervalId)
+      setSimulationIntervalId(null)
+    }
+    if (watchPositionId !== null) {
+      navigator.geolocation.clearWatch(watchPositionId)
+      setWatchPositionId(null)
+    }
+    setSimulatingDeliveryId(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (simulationIntervalId) clearInterval(simulationIntervalId)
+      if (watchPositionId !== null) navigator.geolocation.clearWatch(watchPositionId)
+    }
+  }, [simulationIntervalId, watchPositionId])
 
   return (
     <div className="deliveries-page">
@@ -245,13 +368,22 @@ const DeliveriesPage = () => {
                       </button>
                     )}
                     {(delivery.status === 'ASSIGNED' || delivery.status === 'PICKED_UP') && (
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleCancelDelivery(delivery.id)}
-                        disabled={actionId === delivery.id}
-                      >
-                        Annuler la livraison
-                      </button>
+                      <>
+                        <button 
+                          className="btn btn-secondary btn-sm" 
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} 
+                          onClick={() => setTrackingOrder(order)}
+                        >
+                          <MapPin size={13} /> Carte & GPS
+                        </button>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleCancelDelivery(delivery.id)}
+                          disabled={actionId === delivery.id}
+                        >
+                          Annuler la livraison
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -266,6 +398,86 @@ const DeliveriesPage = () => {
         <div className="modal-backdrop" onClick={() => setActiveChatOrderId(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 0, maxWidth: '400px', width: '90%' }}>
             <ChatWindow orderId={activeChatOrderId} onClose={() => setActiveChatOrderId(null)} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal Carte & Contrôles GPS pour le Livreur */}
+      {trackingOrder && (
+        <div className="modal-backdrop" onClick={() => setTrackingOrder(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '95%', padding: '20px', borderRadius: '16px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 className="modal-title" style={{ margin: 0, fontWeight: 'bold' }}>Livraison #{trackingOrder.id.slice(-6).toUpperCase()}</h3>
+              <button 
+                onClick={() => setTrackingOrder(null)} 
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <DeliveryMap
+                destLat={trackingOrder.delivery?.destLat}
+                destLng={trackingOrder.delivery?.destLng}
+                delivererLat={trackingOrder.delivery?.delivererLat}
+                delivererLng={trackingOrder.delivery?.delivererLng}
+                estimatedTime={trackingOrder.delivery?.estimatedTime}
+                height="320px"
+              />
+            </div>
+            
+            {/* Contrôles de simulation */}
+            <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '15px' }}>
+              <div style={{ fontWeight: '600', fontSize: '14px', color: '#334155', marginBottom: '8px' }}>
+                🎛️ Contrôles de géolocalisation :
+              </div>
+              
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {simulatingDeliveryId === trackingOrder.delivery?.id ? (
+                  <button 
+                    className="btn btn-danger btn-sm"
+                    onClick={stopTracking}
+                  >
+                    ⏹️ Arrêter le partage GPS
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      style={{ backgroundColor: '#3b82f6', border: 'none' }}
+                      onClick={() => startSimulation(trackingOrder)}
+                    >
+                      🚗 Simuler trajet
+                    </button>
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      style={{ backgroundColor: '#10b981', border: 'none' }}
+                      onClick={() => startRealGPS(trackingOrder)}
+                    >
+                      📡 Activer GPS Réel
+                    </button>
+                  </>
+                )}
+              </div>
+              
+              {simulatingDeliveryId === trackingOrder.delivery?.id && (
+                <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '500', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="spin" style={{ display: 'inline-block' }}>🔄</span> Partage de position actif...
+                </div>
+              )}
+            </div>
+
+            <div style={{ fontSize: '14px', color: '#444' }}>
+              <div style={{ marginBottom: '5px' }}>
+                📍 Adresse client : <span style={{ fontWeight: '600' }}>{trackingOrder.delivery?.deliveryAddress}</span>
+              </div>
+              {trackingOrder.delivery?.delivererLat && (
+                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  Position livreur : {trackingOrder.delivery.delivererLat.toFixed(5)}, {trackingOrder.delivery.delivererLng?.toFixed(5)}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

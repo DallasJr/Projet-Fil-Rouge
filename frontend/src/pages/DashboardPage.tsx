@@ -6,6 +6,7 @@ import type { Order, OrderStatus } from '../api/orders.api'
 import { getAllUsers, assignDeliverer } from '../api/admin.api'
 import type { UserDetail } from '../api/admin.api'
 import { useSocket } from '../contexts/SocketContext'
+import { DeliveryMap } from '../components/DeliveryMap'
 
 const statusConfig: Record<OrderStatus, { label: string; icon: ReactElement; className: string }> = {
   PENDING:    { label: 'En attente',     icon: <Clock size={13} />,        className: 'status-pending' },
@@ -33,6 +34,9 @@ const DashboardPage = () => {
   const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null)
   const [isLoadingDeliverers, setIsLoadingDeliverers] = useState(false)
   const [isAssigning, setIsAssigning] = useState(false)
+  
+  // supervision state
+  const [trackingOrder, setTrackingOrder] = useState<Order | null>(null)
 
   const fetchOrders = async () => {
     setIsLoading(true)
@@ -54,15 +58,36 @@ const DashboardPage = () => {
     const onOrderCreated = () => fetchOrders()
     const onStatusUpdate = () => fetchOrders()
     const onDeliveryAssigned = () => fetchOrders()
+    const onLocationUpdate = (data: { orderId: string; deliveryId: string; lat: number; lng: number; estimatedTime?: number }) => {
+      console.log('📍 Admin: Reçu position livreur:', data)
+      setOrders(prevOrders => prevOrders.map(order => {
+        if (order.id === data.orderId && order.delivery) {
+          const updatedOrder = {
+            ...order,
+            delivery: {
+              ...order.delivery,
+              delivererLat: data.lat,
+              delivererLng: data.lng,
+              estimatedTime: data.estimatedTime !== undefined ? data.estimatedTime : order.delivery.estimatedTime
+            }
+          }
+          setTrackingOrder(current => current?.id === data.orderId ? updatedOrder : current)
+          return updatedOrder
+        }
+        return order
+      }))
+    }
 
     socket.on('order_created', onOrderCreated)
     socket.on('order_status_updated', onStatusUpdate)
     socket.on('delivery_assigned', onDeliveryAssigned)
+    socket.on('deliverer_location', onLocationUpdate)
 
     return () => {
       socket.off('order_created', onOrderCreated)
       socket.off('order_status_updated', onStatusUpdate)
       socket.off('delivery_assigned', onDeliveryAssigned)
+      socket.off('deliverer_location', onLocationUpdate)
     }
   }, [socket])
 
@@ -260,6 +285,15 @@ const DashboardPage = () => {
                     </td>
                     <td>
                       <div className="action-buttons">
+                        {order.delivery && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            onClick={() => setTrackingOrder(order)}
+                          >
+                            <MapPin size={11} /> Carte
+                          </button>
+                        )}
                         {nextStatus && (
                           <button
                             id={`advance-${order.id}`}
@@ -351,6 +385,50 @@ const DashboardPage = () => {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Carte Supervision pour l'Admin */}
+      {trackingOrder && (
+        <div className="modal-backdrop" onClick={() => setTrackingOrder(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '95%', padding: '20px', borderRadius: '16px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 className="modal-title" style={{ margin: 0, fontWeight: 'bold' }}>Supervision Livraison #{trackingOrder.id.slice(-6).toUpperCase()}</h3>
+              <button 
+                onClick={() => setTrackingOrder(null)} 
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <DeliveryMap
+                destLat={trackingOrder.delivery?.destLat}
+                destLng={trackingOrder.delivery?.destLng}
+                delivererLat={trackingOrder.delivery?.delivererLat}
+                delivererLng={trackingOrder.delivery?.delivererLng}
+                estimatedTime={trackingOrder.delivery?.estimatedTime}
+                height="350px"
+              />
+            </div>
+            
+            <div style={{ fontSize: '14px', color: '#444' }}>
+              <div style={{ marginBottom: '5px' }}>
+                📍 Adresse de livraison : <span style={{ fontWeight: '600' }}>{trackingOrder.delivery?.deliveryAddress}</span>
+              </div>
+              {trackingOrder.delivery?.deliverer && (
+                <div style={{ color: '#15803d', fontWeight: '500', marginBottom: '5px' }}>
+                  🚴 Livreur : {trackingOrder.delivery.deliverer.name} {trackingOrder.delivery.deliverer.phone ? `(${trackingOrder.delivery.deliverer.phone})` : ''}
+                </div>
+              )}
+              {trackingOrder.delivery?.delivererLat && (
+                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  Position actuelle : {trackingOrder.delivery.delivererLat.toFixed(5)}, {trackingOrder.delivery.delivererLng?.toFixed(5)}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

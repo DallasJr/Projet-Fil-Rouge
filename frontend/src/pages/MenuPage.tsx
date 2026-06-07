@@ -28,6 +28,47 @@ const MenuPage = () => {
   const [error, setError] = useState('')
   const [restaurantId, setRestaurantId] = useState(RESTAURANT_ID)
 
+  // Address validation suggestions states
+  const [suggestions, setSuggestions] = useState<{ label: string }[]>([])
+  const [isValidatingAddress, setIsValidatingAddress] = useState(false)
+  const [addressStatus, setAddressStatus] = useState<'UNCHECKED' | 'VALID' | 'FORCED'>('UNCHECKED')
+
+  const handleAddressChange = async (val: string) => {
+    setDeliveryAddress(val)
+    setAddressStatus('UNCHECKED')
+    
+    if (val.trim().length < 5) {
+      setSuggestions([])
+      return
+    }
+    
+    setIsValidatingAddress(true)
+    try {
+      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(val)}&limit=5`)
+      const data = await res.json()
+      if (data.features) {
+        setSuggestions(data.features.map((f: any) => ({
+          label: f.properties.label
+        })))
+      }
+    } catch (err) {
+      console.error("Erreur de recherche d'adresse", err)
+    } finally {
+      setIsValidatingAddress(false)
+    }
+  }
+
+  const selectSuggestion = (label: string) => {
+    setDeliveryAddress(label)
+    setSuggestions([])
+    setAddressStatus('VALID')
+  }
+
+  const forceManualValidation = () => {
+    setSuggestions([])
+    setAddressStatus('FORCED')
+  }
+
   useEffect(() => {
     // Si pas d'ID en env, on essaie de le récupérer via l'API
     const fetchData = async () => {
@@ -93,6 +134,8 @@ const MenuPage = () => {
       setCart([])
       setNotes('')
       setDeliveryAddress('')
+      setSuggestions([])
+      setAddressStatus('UNCHECKED')
       setIsCartOpen(false)
       setOrderSuccess(true)
       setTimeout(() => setOrderSuccess(false), 5000)
@@ -240,15 +283,100 @@ const MenuPage = () => {
                 <span className="toggle-text"><MapPin size={14} /> Livraison à domicile</span>
               </label>
               {withDelivery && (
-                <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                <div className="form-group" style={{ marginTop: '0.5rem', position: 'relative' }}>
+                  <label className="form-label" htmlFor="delivery-address" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Adresse de livraison</span>
+                    {addressStatus === 'VALID' && (
+                      <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold' }}>✓ Validée</span>
+                    )}
+                    {addressStatus === 'FORCED' && (
+                      <span style={{ fontSize: '11px', color: '#ea580c', fontWeight: 'bold' }}>⚠️ Validation forcée</span>
+                    )}
+                    {addressStatus === 'UNCHECKED' && deliveryAddress.trim().length >= 5 && (
+                      <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 'bold' }}>✗ Non validée</span>
+                    )}
+                  </label>
                   <input
                     id="delivery-address"
                     type="text"
                     className="form-input"
-                    placeholder="Votre adresse complète..."
+                    placeholder="Entrez votre adresse..."
                     value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    onChange={(e) => handleAddressChange(e.target.value)}
+                    autoComplete="off"
                   />
+
+                  {isValidatingAddress && (
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      Recherche de l'adresse...
+                    </div>
+                  )}
+
+                  {suggestions.length > 0 && (
+                    <div style={{
+                      backgroundColor: 'white',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      marginTop: '4px',
+                      maxHeight: '150px',
+                      overflowY: 'auto',
+                      position: 'absolute',
+                      zIndex: 100,
+                      width: '100%',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)'
+                    }}>
+                      {suggestions.map((s, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => selectSuggestion(s.label)}
+                          style={{
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            borderBottom: idx < suggestions.length - 1 ? '1px solid #f1f5f9' : 'none',
+                            color: '#1e293b'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          📍 {s.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {addressStatus === 'UNCHECKED' && deliveryAddress.trim().length >= 5 && !isValidatingAddress && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '8px',
+                      backgroundColor: '#fef2f2',
+                      border: '1px solid #fee2e2',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: '#991b1b',
+                      lineHeight: '1.4'
+                    }}>
+                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>⚠️ Adresse non répertoriée</div>
+                      <div>Veuillez sélectionner une suggestion dans la liste ou :</div>
+                      <button
+                        type="button"
+                        onClick={forceManualValidation}
+                        style={{
+                          marginTop: '6px',
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          backgroundColor: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontWeight: '600'
+                        }}
+                      >
+                        Utiliser cette adresse quand même
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -271,7 +399,7 @@ const MenuPage = () => {
                 <span className="cart-total-amount">{cartTotal.toFixed(2)} €</span>
               </div>
               {withDelivery && <div className="cart-delivery-fee"><CreditCard size={13} /> +2.50 € de frais de livraison</div>}
-              <button id="btn-confirm-order" className="btn btn-primary btn-full" onClick={handleOrder} disabled={isOrdering || (withDelivery && !deliveryAddress)}>
+              <button id="btn-confirm-order" className="btn btn-primary btn-full" onClick={handleOrder} disabled={isOrdering || (withDelivery && (!deliveryAddress || addressStatus === 'UNCHECKED'))}>
                 {isOrdering ? <span className="btn-spinner"></span> : (<><Send size={15} /> Confirmer la commande</>)}
               </button>
             </div>
