@@ -126,8 +126,11 @@ const DashboardPage = () => {
     setIsAssignModalOpen(true)
     setIsLoadingDeliverers(true)
     try {
-      const data = await getAllUsers('DELIVERER', true)
-      setDeliverers(data)
+      const [deliverersData, adminsData] = await Promise.all([
+        getAllUsers('DELIVERER', true),
+        getAllUsers('ADMIN', true)
+      ])
+      setDeliverers([...deliverersData, ...adminsData])
     } catch {
       setError('Impossible de charger les livreurs.')
     } finally {
@@ -239,6 +242,9 @@ const DashboardPage = () => {
                 const nextStatus = currentIndex >= 0 && currentIndex < STATUS_FLOW.length - 1
                   ? STATUS_FLOW[currentIndex + 1]
                   : null
+                const prevStatus = currentIndex > 0 && currentIndex <= STATUS_FLOW.length - 1
+                  ? STATUS_FLOW[currentIndex - 1]
+                  : null
 
                 return (
                   <tr key={order.id} id={`row-${order.id}`}>
@@ -320,6 +326,17 @@ const DashboardPage = () => {
                         >
                           <ClipboardList size={11} /> Historique
                         </button>
+                        {prevStatus && (
+                          <button
+                            id={`rollback-${order.id}`}
+                            className="btn btn-secondary btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#64748b', color: '#fff' }}
+                            onClick={() => handleStatusChange(order.id, prevStatus)}
+                            disabled={updatingId === order.id}
+                          >
+                            {updatingId === order.id ? <span className="btn-spinner"></span> : `← ${statusConfig[prevStatus].label}`}
+                          </button>
+                        )}
                         {nextStatus && (
                           <button
                             id={`advance-${order.id}`}

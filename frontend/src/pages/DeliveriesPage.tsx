@@ -17,7 +17,7 @@ const deliveryStatusConfig: Record<DeliveryStatus, { label: string; icon: ReactE
 }
 
 const DeliveriesPage = () => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
   const { socket } = useSocket()
   const [available, setAvailable] = useState<Delivery[]>([])
   const [myOrders, setMyOrders] = useState<Order[]>([])
@@ -43,7 +43,7 @@ const DeliveriesPage = () => {
       ])
       setAvailable(avail)
       // Filtrer les commandes avec livraison assignée à ce livreur
-      setMyOrders(orders.filter((o) => o.delivery))
+      setMyOrders(orders.filter((o) => o.delivery && o.delivery.delivererId === user?.id))
     } catch {
       setError('Impossible de charger les livraisons.')
     } finally {

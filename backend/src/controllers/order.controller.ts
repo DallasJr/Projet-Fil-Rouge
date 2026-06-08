@@ -10,11 +10,11 @@ import { createAuditLog } from '../utils/auditLog'
 // Cycle de statut autorisé — l'admin NE PEUT PAS sauter des étapes
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PENDING]:    [OrderStatus.ACCEPTED, OrderStatus.CANCELLED],
-  [OrderStatus.ACCEPTED]:   [OrderStatus.PREPARING, OrderStatus.CANCELLED],
-  [OrderStatus.PREPARING]:  [OrderStatus.READY, OrderStatus.CANCELLED],
-  [OrderStatus.READY]:      [OrderStatus.DELIVERING, OrderStatus.CANCELLED],
-  [OrderStatus.DELIVERING]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-  [OrderStatus.DELIVERED]:  [], // terminal
+  [OrderStatus.ACCEPTED]:   [OrderStatus.PREPARING, OrderStatus.PENDING, OrderStatus.CANCELLED],
+  [OrderStatus.PREPARING]:  [OrderStatus.READY, OrderStatus.ACCEPTED, OrderStatus.CANCELLED],
+  [OrderStatus.READY]:      [OrderStatus.DELIVERING, OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.DELIVERING]: [OrderStatus.DELIVERED, OrderStatus.READY, OrderStatus.CANCELLED],
+  [OrderStatus.DELIVERED]:  [OrderStatus.DELIVERING], // terminal, mais permet le retour en arrière
   [OrderStatus.CANCELLED]:  []  // terminal
 }
 
@@ -138,6 +138,17 @@ export const getMyOrders = async (req: AuthenticatedRequest, res: Response) => {
           delivererId: req.user.id
         }
       }
+    } else if (req.user.role === Role.ADMIN) {
+      whereClause = {
+        OR: [
+          { customerId: req.user.id },
+          {
+            delivery: {
+              delivererId: req.user.id
+            }
+          }
+        ]
+      }
     }
 
     const orders = await prisma.order.findMany({
@@ -212,7 +223,16 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
     // Vérifier le cycle de statut
     const currentOrder = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { status: true, customerId: true }
+      select: { 
+        status: true, 
+        customerId: true,
+        delivery: {
+          select: {
+            id: true,
+            delivererId: true
+          }
+        }
+      }
     })
     if (!currentOrder) {
       return res.status(404).json({ error: 'Commande introuvable.' })
@@ -223,6 +243,14 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
       return res.status(400).json({
         error: `Transition de statut interdite : ${currentOrder.status} → ${status}. Transitions autorisées : ${allowedNext.join(', ') || 'aucune (statut terminal)'}.`
       })
+    }
+
+    if (status === OrderStatus.DELIVERING) {
+      if (currentOrder.delivery && !currentOrder.delivery.delivererId) {
+        return res.status(400).json({
+          error: "Impossible de passer en livraison (DELIVERING) : aucun livreur n'est assigné à cette commande."
+        })
+      }
     }
 
     const updatedOrder = await prisma.order.update({
@@ -504,8 +532,8 @@ export const assignDeliverer = async (req: AuthenticatedRequest, res: Response) 
       where: { id: String(delivererId) }
     })
 
-    if (!deliverer || deliverer.role !== Role.DELIVERER) {
-      return res.status(400).json({ error: 'Le rôle de l\'utilisateur spécifié doit être DELIVERER.' })
+    if (!deliverer || (deliverer.role !== Role.DELIVERER && deliverer.role !== Role.ADMIN)) {
+      return res.status(400).json({ error: 'Le rôle de l\'utilisateur spécifié doit être DELIVERER ou ADMIN.' })
     }
 
     const delivery = await prisma.delivery.findUnique({
