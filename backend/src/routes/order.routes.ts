@@ -11,7 +11,8 @@ import {
   assignDeliverer,
   cancelDelivery,
   confirmDelivery,
-  updateDelivererLocation
+  updateDelivererLocation,
+  getOrderAuditLogs
 } from '../controllers/order.controller'
 import { authenticateJWT, authorizeRoles } from '../middlewares/auth.middleware'
 import { Role } from '@prisma/client'
@@ -58,5 +59,8 @@ router.patch('/deliveries/:id/cancel', authenticateJWT, authorizeRoles(Role.DELI
 
 // Lot 2 — Mise à jour de la position GPS du livreur en temps réel
 router.patch('/deliveries/:id/location', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), updateDelivererLocation)
+
+// Lot 3 — Historique d'audit d'une commande (ADMIN uniquement)
+router.get('/:id/audit-logs', authenticateJWT, authorizeRoles(Role.ADMIN), getOrderAuditLogs)
 
 export default router
