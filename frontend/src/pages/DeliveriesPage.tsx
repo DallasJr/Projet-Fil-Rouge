@@ -95,6 +95,21 @@ const DeliveriesPage = () => {
     }
   }
 
+  const handleConfirmCashPayment = async (deliveryId: string, currentStatus: DeliveryStatus) => {
+    if (!window.confirm("Confirmez-vous avoir reçu le paiement en espèces pour cette livraison ?")) {
+      return
+    }
+    setActionId(deliveryId)
+    try {
+      await updateDeliveryStatus(deliveryId, currentStatus, true)
+      await fetchAll()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de la validation du paiement.')
+    } finally {
+      setActionId(null)
+    }
+  }
+
   const handleCancelDelivery = async (deliveryId: string) => {
     if (!window.confirm('Êtes-vous sûr de vouloir annuler la livraison de cette commande ? Elle redeviendra disponible pour les autres livreurs.')) {
       return
@@ -334,7 +349,9 @@ const DeliveriesPage = () => {
                     ))}
                   </div>
                   <div className="delivery-meta" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                    <span>Total commande : <strong>{order.totalAmount.toFixed(2)} €</strong></span>
+                    <span>Total commande : <strong>{(order.totalAmount + delivery.deliveryFee).toFixed(2)} €</strong> (Frais inclus)</span>
+                    <span>Mode de paiement : <strong>{delivery.paymentMethod === 'CREDIT_CARD' ? '💳 Carte Bancaire' : delivery.paymentMethod === 'PAYPAL' ? '🅿️ PayPal' : '💵 Espèces'}</strong></span>
+                    <span>Statut paiement : <strong>{delivery.isPaid ? '✅ Payé' : `⏳ À encaisser`}</strong></span>
                     {delivery.confirmedByCustomer && !delivery.confirmedByDeliverer && (
                       <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '500' }}>
                         ✓ Le client a déjà confirmé la réception
@@ -347,6 +364,17 @@ const DeliveriesPage = () => {
                     )}
                   </div>
                   <div className="action-buttons" style={{ marginTop: '0.75rem', gap: '8px', flexWrap: 'wrap' }}>
+                    {delivery.paymentMethod === 'CASH' && !delivery.isPaid && (
+                      <button
+                        id={`collect-cash-${delivery.id}`}
+                        className="btn btn-success btn-sm"
+                        style={{ backgroundColor: '#16a34a', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => handleConfirmCashPayment(delivery.id, delivery.status)}
+                        disabled={actionId === delivery.id}
+                      >
+                        {actionId === delivery.id ? <span className="btn-spinner"></span> : `💵 Encaisser ${(order.totalAmount + delivery.deliveryFee).toFixed(2)} €`}
+                      </button>
+                    )}
                     {delivery.status === 'ASSIGNED' && (
                       <button id={`pickup-${delivery.id}`} className="btn btn-primary btn-sm" onClick={() => handleStatusUpdate(delivery.id, 'PICKED_UP')} disabled={actionId === delivery.id}>
                         {actionId === delivery.id ? <span className="btn-spinner"></span> : '📦 Commande récupérée'}

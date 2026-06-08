@@ -33,6 +33,7 @@ export interface Delivery {
   deliveredAt: string | null
   confirmedByDeliverer: boolean
   confirmedByCustomer: boolean
+  paymentMethod: 'CREDIT_CARD' | 'PAYPAL' | 'CASH'
   delivererId: string | null
   deliverer?: {
     id: string
