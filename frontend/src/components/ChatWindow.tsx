@@ -8,9 +8,10 @@ import type { Message } from '../api/orders.api'
 interface ChatWindowProps {
   orderId: string
   onClose?: () => void
+  isClosed?: boolean
 }
 
-export const ChatWindow = ({ orderId, onClose }: ChatWindowProps) => {
+export const ChatWindow = ({ orderId, onClose, isClosed = false }: ChatWindowProps) => {
   const { socket, isConnected } = useSocket()
   const { user } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
@@ -135,12 +136,12 @@ export const ChatWindow = ({ orderId, onClose }: ChatWindowProps) => {
         <input
           type="text"
           className="chat-input"
-          placeholder={isConnected ? "Écrivez votre message..." : "Connexion au chat impossible..."}
+          placeholder={isClosed ? "La discussion est fermée (livrée/annulée)." : isConnected ? "Écrivez votre message..." : "Connexion au chat impossible..."}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          disabled={!isConnected}
+          disabled={!isConnected || isClosed}
         />
-        <button type="submit" className="btn btn-primary chat-send-btn" disabled={!inputValue.trim() || !isConnected}>
+        <button type="submit" className="btn btn-primary chat-send-btn" disabled={!inputValue.trim() || !isConnected || isClosed}>
           <Send size={15} />
         </button>
       </form>

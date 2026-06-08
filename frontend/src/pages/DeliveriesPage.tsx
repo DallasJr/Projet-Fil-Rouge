@@ -362,11 +362,9 @@ const DeliveriesPage = () => {
                         ⏳ En attente de validation client...
                       </span>
                     )}
-                    {delivery.status !== 'DELIVERED' && delivery.status !== 'CANCELLED' && (
-                      <button className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => setActiveChatOrderId(order.id)}>
-                        <MessageSquare size={13} /> Chat Client
-                      </button>
-                    )}
+                    <button className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => setActiveChatOrderId(order.id)}>
+                      <MessageSquare size={13} /> {['DELIVERED', 'CANCELLED'].includes(delivery.status) ? 'Historique Chat' : 'Chat Client'}
+                    </button>
                     {(delivery.status === 'ASSIGNED' || delivery.status === 'PICKED_UP') && (
                       <>
                         <button 
@@ -397,7 +395,11 @@ const DeliveriesPage = () => {
       {activeChatOrderId && (
         <div className="modal-backdrop" onClick={() => setActiveChatOrderId(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 0, maxWidth: '400px', width: '90%' }}>
-            <ChatWindow orderId={activeChatOrderId} onClose={() => setActiveChatOrderId(null)} />
+            <ChatWindow 
+              orderId={activeChatOrderId} 
+              onClose={() => setActiveChatOrderId(null)} 
+              isClosed={['DELIVERED', 'CANCELLED'].includes(myOrders.find(o => o.id === activeChatOrderId)?.status || '')}
+            />
           </div>
         </div>
       )}

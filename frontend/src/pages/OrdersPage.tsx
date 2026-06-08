@@ -229,21 +229,23 @@ const OrdersPage = () => {
                     })}
                   </span>
                   
-                  {order.delivery && order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
+                  {order.delivery && (
                     <>
-                      <button 
-                        className="btn btn-secondary btn-sm" 
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                        onClick={() => setTrackingOrder(order)}
-                      >
-                        <MapPin size={13} /> Carte Live
-                      </button>
+                      {order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
+                        <button 
+                          className="btn btn-secondary btn-sm" 
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                          onClick={() => setTrackingOrder(order)}
+                        >
+                          <MapPin size={13} /> Carte Live
+                        </button>
+                      )}
                       <button 
                         className="btn btn-secondary btn-sm" 
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                         onClick={() => setActiveChatOrderId(order.id)}
                       >
-                        <MessageSquare size={13} /> Chat Live
+                        <MessageSquare size={13} /> {['DELIVERED', 'CANCELLED'].includes(order.status) ? 'Historique Chat' : 'Chat Live'}
                       </button>
                     </>
                   )}
@@ -270,7 +272,11 @@ const OrdersPage = () => {
       {activeChatOrderId && (
         <div className="modal-backdrop" onClick={() => setActiveChatOrderId(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 0, maxWidth: '400px', width: '90%' }}>
-            <ChatWindow orderId={activeChatOrderId} onClose={() => setActiveChatOrderId(null)} />
+            <ChatWindow 
+              orderId={activeChatOrderId} 
+              onClose={() => setActiveChatOrderId(null)} 
+              isClosed={['DELIVERED', 'CANCELLED'].includes(orders.find(o => o.id === activeChatOrderId)?.status || '')}
+            />
           </div>
         </div>
       )}

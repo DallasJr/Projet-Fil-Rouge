@@ -154,7 +154,7 @@ export const getAllOrders = async (req: AuthenticatedRequest, res: Response) => 
     if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
 
     let whereClause: any = {}
-    
+
     // Si c'est un livreur, il ne doit voir que SES propres livraisons/commandes.
     if (req.user.role === Role.DELIVERER) {
       whereClause = {
@@ -336,7 +336,7 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
       } else if (status === DeliveryStatus.DELIVERED) {
         // Le livreur déclare avoir livré
         updatedData.confirmedByDeliverer = true
-        
+
         // Si le client a déjà validé, on clôture définitivement la livraison
         if (delivery.confirmedByCustomer) {
           updatedData.status = DeliveryStatus.DELIVERED
