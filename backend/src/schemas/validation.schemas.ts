@@ -63,3 +63,12 @@ export const updateDeliveryStatusSchema = z
   .refine((data) => data.status !== undefined || data.isPaid !== undefined, {
     message: 'Au moins un champ doit être fourni pour la mise à jour de la livraison.',
   })
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email({ message: 'Email invalide.' }),
+})
+
+export const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1, { message: 'Token de réinitialisation requis.' }),
+  newPassword: z.string().min(6, { message: 'Le mot de passe doit contenir au moins 6 caractères.' }),
+})

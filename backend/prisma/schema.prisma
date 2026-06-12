@@ -54,6 +54,7 @@ model User {
   addresses        Address[]
   reviews          Review[]
   notifications    Notification[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Address {
@@ -175,5 +176,15 @@ model Notification {
   order      Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   message    String
   isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  used       Boolean  @default(false)
   createdAt  DateTime @default(now())
 }
