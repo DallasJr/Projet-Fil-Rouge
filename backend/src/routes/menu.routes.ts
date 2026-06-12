@@ -9,7 +9,9 @@ import {
   deleteItem
 } from '../controllers/menu.controller'
 import { authenticateJWT, authorizeRoles } from '../middlewares/auth.middleware'
+import { validateBody } from '../middlewares/validation.middleware'
 import { Role } from '@prisma/client'
+import { createCategorySchema, createItemSchema, updateItemSchema } from '../schemas/validation.schemas'
 
 const router = Router()
 
@@ -18,7 +20,7 @@ const router = Router()
 router.get('/categories', getCategories)
 
 // Seul le restaurant (ADMIN) peut créer ou supprimer des catégories
-router.post('/categories', authenticateJWT, authorizeRoles(Role.ADMIN), createCategory)
+router.post('/categories', authenticateJWT, authorizeRoles(Role.ADMIN), validateBody(createCategorySchema), createCategory)
 router.delete('/categories/:id', authenticateJWT, authorizeRoles(Role.ADMIN), deleteCategory)
 
 
@@ -27,8 +29,8 @@ router.delete('/categories/:id', authenticateJWT, authorizeRoles(Role.ADMIN), de
 router.get('/items', getItems)
 
 // Seul le restaurant (ADMIN) peut gérer les plats de la carte
-router.post('/items', authenticateJWT, authorizeRoles(Role.ADMIN), createItem)
-router.put('/items/:id', authenticateJWT, authorizeRoles(Role.ADMIN), updateItem)
+router.post('/items', authenticateJWT, authorizeRoles(Role.ADMIN), validateBody(createItemSchema), createItem)
+router.put('/items/:id', authenticateJWT, authorizeRoles(Role.ADMIN), validateBody(updateItemSchema), updateItem)
 router.delete('/items/:id', authenticateJWT, authorizeRoles(Role.ADMIN), deleteItem)
 
 export default router
