@@ -21,7 +21,17 @@ const MenuPage = () => {
   const [notes, setNotes] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [withDelivery, setWithDelivery] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'CREDIT_CARD' | 'PAYPAL' | 'CASH'>('CREDIT_CARD')
   const [isCartOpen, setIsCartOpen] = useState(false)
+  
+  // Simulation de paiement
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [paymentStep, setPaymentStep] = useState<'FORM' | 'PROCESSING' | 'SUCCESS'>('FORM')
+  const [cardHolder, setCardHolder] = useState('')
+  const [cardNumber, setCardNumber] = useState('')
+  const [cardExpiry, setCardExpiry] = useState('')
+  const [cardCvv, setCardCvv] = useState('')
+  const [paypalEmail, setPaypalEmail] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isOrdering, setIsOrdering] = useState(false)
   const [orderSuccess, setOrderSuccess] = useState(false)
@@ -115,6 +125,24 @@ const MenuPage = () => {
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0)
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
 
+  const startPaymentProcess = () => {
+    setPaymentStep('FORM')
+    setIsPaymentModalOpen(true)
+  }
+
+  const handleConfirmMockPayment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPaymentStep('PROCESSING')
+    
+    // Simulation du temps de traitement bancaire / PayPal / Espèces
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    setPaymentStep('SUCCESS')
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    
+    await handleOrder()
+    setIsPaymentModalOpen(false)
+  }
+
   const handleOrder = async () => {
     if (cart.length === 0) return
     if (!restaurantId) {
@@ -130,6 +158,7 @@ const MenuPage = () => {
         items: orderItems,
         note: notes || undefined,
         deliveryAddress: withDelivery && deliveryAddress ? deliveryAddress : undefined,
+        paymentMethod: withDelivery ? paymentMethod : undefined,
       })
       setCart([])
       setNotes('')
@@ -381,6 +410,84 @@ const MenuPage = () => {
               )}
             </div>
 
+            {/* Mode de paiement */}
+            {withDelivery && (
+              <div className="payment-method-section" style={{ marginTop: '1.2rem', padding: '0 1rem' }}>
+                <label className="form-label" style={{ fontWeight: '600', color: '#334155' }}>Mode de paiement</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '6px' }}>
+                  <button
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '10px 4px',
+                      borderRadius: '8px',
+                      border: paymentMethod === 'CREDIT_CARD' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      backgroundColor: paymentMethod === 'CREDIT_CARD' ? '#f0f9ff' : '#fff',
+                      color: paymentMethod === 'CREDIT_CARD' ? '#0284c7' : '#475569',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      transition: 'all 0.2s',
+                      fontSize: '11px',
+                      gap: '4px'
+                    }}
+                    onClick={() => setPaymentMethod('CREDIT_CARD')}
+                  >
+                    <CreditCard size={16} />
+                    <span>Carte</span>
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '10px 4px',
+                      borderRadius: '8px',
+                      border: paymentMethod === 'PAYPAL' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      backgroundColor: paymentMethod === 'PAYPAL' ? '#f0f9ff' : '#fff',
+                      color: paymentMethod === 'PAYPAL' ? '#0284c7' : '#475569',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      transition: 'all 0.2s',
+                      fontSize: '11px',
+                      gap: '4px'
+                    }}
+                    onClick={() => setPaymentMethod('PAYPAL')}
+                  >
+                    <span style={{ fontSize: '15px', fontWeight: 'bold', lineHeight: '16px' }}>P</span>
+                    <span>PayPal</span>
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '10px 4px',
+                      borderRadius: '8px',
+                      border: paymentMethod === 'CASH' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      backgroundColor: paymentMethod === 'CASH' ? '#f0f9ff' : '#fff',
+                      color: paymentMethod === 'CASH' ? '#0284c7' : '#475569',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      transition: 'all 0.2s',
+                      fontSize: '11px',
+                      gap: '4px'
+                    }}
+                    onClick={() => setPaymentMethod('CASH')}
+                  >
+                    <span style={{ fontSize: '15px', lineHeight: '16px' }}>💵</span>
+                    <span>Espèces</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="cart-notes">
               <label className="form-label" htmlFor="cart-notes">Notes (optionnel)</label>
               <textarea
@@ -399,10 +506,215 @@ const MenuPage = () => {
                 <span className="cart-total-amount">{cartTotal.toFixed(2)} €</span>
               </div>
               {withDelivery && <div className="cart-delivery-fee"><CreditCard size={13} /> +2.50 € de frais de livraison</div>}
-              <button id="btn-confirm-order" className="btn btn-primary btn-full" onClick={handleOrder} disabled={isOrdering || (withDelivery && (!deliveryAddress || addressStatus === 'UNCHECKED'))}>
-                {isOrdering ? <span className="btn-spinner"></span> : (<><Send size={15} /> Confirmer la commande</>)}
+              <button id="btn-confirm-order" className="btn btn-primary btn-full" onClick={startPaymentProcess} disabled={isOrdering || (withDelivery && (!deliveryAddress || addressStatus === 'UNCHECKED'))}>
+                <Send size={15} /> Passer au paiement
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Simulation de Paiement Premium */}
+      {isPaymentModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          padding: '16px'
+        }} onClick={() => paymentStep !== 'PROCESSING' && setIsPaymentModalOpen(false)}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '20px',
+            width: '100%',
+            maxWidth: '460px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            padding: '28px',
+            position: 'relative',
+            overflow: 'hidden'
+          }} onClick={(e) => e.stopPropagation()}>
+            
+            {paymentStep === 'FORM' && (
+              <form onSubmit={handleConfirmMockPayment}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, fontSize: '19px', fontWeight: '800', color: '#0f172a' }}>
+                    💰 Validation du paiement
+                  </h3>
+                  <button type="button" onClick={() => setIsPaymentModalOpen(false)} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                </div>
+
+                {paymentMethod === 'CREDIT_CARD' && (
+                  <div>
+                    {/* Visual Card Preview */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)',
+                      borderRadius: '16px',
+                      padding: '20px',
+                      color: 'white',
+                      fontFamily: '"Courier New", Courier, monospace',
+                      boxShadow: '0 10px 15px -3px rgba(6, 182, 212, 0.4)',
+                      marginBottom: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      height: '160px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 'bold', letterSpacing: '1px' }}>SECURE CARD</span>
+                        <span style={{ fontSize: '20px', fontStyle: 'italic', fontWeight: 'bold' }}>Visa</span>
+                      </div>
+                      <div style={{ fontSize: '18px', letterSpacing: '3px', margin: '15px 0 10px', textAlign: 'center' }}>
+                        {cardNumber ? cardNumber.replace(/(\d{4})/g, '$1 ').trim() : '•••• •••• •••• ••••'}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <div>
+                          <div style={{ opacity: 0.7, fontSize: '8px', marginBottom: '2px' }}>CARDHOLDER</div>
+                          <div style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>{cardHolder || 'NOM PRENOM'}</div>
+                        </div>
+                        <div>
+                          <div style={{ opacity: 0.7, fontSize: '8px', marginBottom: '2px' }}>EXPIRES</div>
+                          <div>{cardExpiry || 'MM/YY'}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '12px', fontWeight: '600' }}>Nom du titulaire</label>
+                        <input
+                          type="text"
+                          required
+                          className="form-input"
+                          placeholder="Jean Dupont"
+                          value={cardHolder}
+                          onChange={(e) => setCardHolder(e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '12px', fontWeight: '600' }}>Numéro de carte</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={16}
+                          pattern="\d{16}"
+                          className="form-input"
+                          placeholder="1234567890123456"
+                          value={cardNumber}
+                          onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ''))}
+                        />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '12px', fontWeight: '600' }}>Date d'expiration</label>
+                          <input
+                            type="text"
+                            required
+                            maxLength={5}
+                            placeholder="MM/YY"
+                            className="form-input"
+                            value={cardExpiry}
+                            onChange={(e) => setCardExpiry(e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '12px', fontWeight: '600' }}>CVV</label>
+                          <input
+                            type="password"
+                            required
+                            maxLength={3}
+                            pattern="\d{3}"
+                            placeholder="123"
+                            className="form-input"
+                            value={cardCvv}
+                            onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, ''))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === 'PAYPAL' && (
+                  <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>💳</div>
+                    <p style={{ fontSize: '14px', color: '#475569', marginBottom: '20px' }}>
+                      Vous allez être connecté au service sécurisé de PayPal pour autoriser le paiement de <strong>{cartTotal.toFixed(2)} €</strong>.
+                    </p>
+                    <div className="form-group" style={{ textAlign: 'left' }}>
+                      <label className="form-label" style={{ fontSize: '12px', fontWeight: '600' }}>Adresse email PayPal</label>
+                      <input
+                        type="email"
+                        required
+                        className="form-input"
+                        placeholder="nom@exemple.com"
+                        value={paypalEmail}
+                        onChange={(e) => setPaypalEmail(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === 'CASH' && (
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>💵</div>
+                    <p style={{ fontSize: '15px', color: '#334155', fontWeight: '500' }}>
+                      Règlement en espèces à la livraison.
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#64748b', marginTop: '8px' }}>
+                      Vous paierez un total de <strong>{(cartTotal + 2.50).toFixed(2)} €</strong> (incluant les frais de livraison) directement au livreur.
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+                  <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="btn btn-secondary" style={{ flex: 1 }}>
+                    Annuler
+                  </button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 2, background: 'linear-gradient(to right, #0284c7, #0369a1)', border: 'none' }}>
+                    Confirmer & Payer {(cartTotal + (withDelivery ? 2.50 : 0)).toFixed(2)} €
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {paymentStep === 'PROCESSING' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', textAlign: 'center' }}>
+                <div className="loading-spinner" style={{ width: '45px', height: '45px', border: '4px solid #f3f3f3', borderTop: '4px solid #0284c7', marginBottom: '24px' }}></div>
+                <h4 style={{ margin: 0, fontSize: '17px', fontWeight: '700', color: '#0f172a' }}>Traitement de la transaction...</h4>
+                <p style={{ fontSize: '13px', color: '#64748b', marginTop: '8px', maxWidth: '300px' }}>
+                  Connexion sécurisée en cours. Veuillez ne pas fermer cette fenêtre.
+                </p>
+              </div>
+            )}
+
+            {paymentStep === 'SUCCESS' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', textAlign: 'center' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#dcfce7',
+                  color: '#15803d',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '28px',
+                  marginBottom: '20px',
+                  boxShadow: '0 4px 12px rgba(21, 128, 61, 0.2)'
+                }}>✓</div>
+                <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#16a34a' }}>Paiement approuvé !</h4>
+                <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
+                  Votre commande a bien été enregistrée et est en cours de traitement.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

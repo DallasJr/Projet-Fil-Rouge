@@ -17,7 +17,7 @@ const deliveryStatusConfig: Record<DeliveryStatus, { label: string; icon: ReactE
 }
 
 const DeliveriesPage = () => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
   const { socket } = useSocket()
   const [available, setAvailable] = useState<Delivery[]>([])
   const [myOrders, setMyOrders] = useState<Order[]>([])
@@ -43,7 +43,7 @@ const DeliveriesPage = () => {
       ])
       setAvailable(avail)
       // Filtrer les commandes avec livraison assignée à ce livreur
-      setMyOrders(orders.filter((o) => o.delivery))
+      setMyOrders(orders.filter((o) => o.delivery && o.delivery.delivererId === user?.id))
     } catch {
       setError('Impossible de charger les livraisons.')
     } finally {
@@ -90,6 +90,21 @@ const DeliveriesPage = () => {
       await fetchAll()
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erreur lors de la mise à jour.')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const handleConfirmCashPayment = async (deliveryId: string, currentStatus: DeliveryStatus) => {
+    if (!window.confirm("Confirmez-vous avoir reçu le paiement en espèces pour cette livraison ?")) {
+      return
+    }
+    setActionId(deliveryId)
+    try {
+      await updateDeliveryStatus(deliveryId, currentStatus, true)
+      await fetchAll()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de la validation du paiement.')
     } finally {
       setActionId(null)
     }
@@ -334,7 +349,9 @@ const DeliveriesPage = () => {
                     ))}
                   </div>
                   <div className="delivery-meta" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                    <span>Total commande : <strong>{order.totalAmount.toFixed(2)} €</strong></span>
+                    <span>Total commande : <strong>{(order.totalAmount + delivery.deliveryFee).toFixed(2)} €</strong> (Frais inclus)</span>
+                    <span>Mode de paiement : <strong>{delivery.paymentMethod === 'CREDIT_CARD' ? '💳 Carte Bancaire' : delivery.paymentMethod === 'PAYPAL' ? '🅿️ PayPal' : '💵 Espèces'}</strong></span>
+                    <span>Statut paiement : <strong>{delivery.isPaid ? '✅ Payé' : `⏳ À encaisser`}</strong></span>
                     {delivery.confirmedByCustomer && !delivery.confirmedByDeliverer && (
                       <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '500' }}>
                         ✓ Le client a déjà confirmé la réception
@@ -347,6 +364,17 @@ const DeliveriesPage = () => {
                     )}
                   </div>
                   <div className="action-buttons" style={{ marginTop: '0.75rem', gap: '8px', flexWrap: 'wrap' }}>
+                    {delivery.paymentMethod === 'CASH' && !delivery.isPaid && (
+                      <button
+                        id={`collect-cash-${delivery.id}`}
+                        className="btn btn-success btn-sm"
+                        style={{ backgroundColor: '#16a34a', color: '#fff', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        onClick={() => handleConfirmCashPayment(delivery.id, delivery.status)}
+                        disabled={actionId === delivery.id}
+                      >
+                        {actionId === delivery.id ? <span className="btn-spinner"></span> : `💵 Encaisser ${(order.totalAmount + delivery.deliveryFee).toFixed(2)} €`}
+                      </button>
+                    )}
                     {delivery.status === 'ASSIGNED' && (
                       <button id={`pickup-${delivery.id}`} className="btn btn-primary btn-sm" onClick={() => handleStatusUpdate(delivery.id, 'PICKED_UP')} disabled={actionId === delivery.id}>
                         {actionId === delivery.id ? <span className="btn-spinner"></span> : '📦 Commande récupérée'}
@@ -362,11 +390,9 @@ const DeliveriesPage = () => {
                         ⏳ En attente de validation client...
                       </span>
                     )}
-                    {delivery.status !== 'DELIVERED' && delivery.status !== 'CANCELLED' && (
-                      <button className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => setActiveChatOrderId(order.id)}>
-                        <MessageSquare size={13} /> Chat Client
-                      </button>
-                    )}
+                    <button className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => setActiveChatOrderId(order.id)}>
+                      <MessageSquare size={13} /> {['DELIVERED', 'CANCELLED'].includes(delivery.status) ? 'Historique Chat' : 'Chat Client'}
+                    </button>
                     {(delivery.status === 'ASSIGNED' || delivery.status === 'PICKED_UP') && (
                       <>
                         <button 
@@ -397,7 +423,11 @@ const DeliveriesPage = () => {
       {activeChatOrderId && (
         <div className="modal-backdrop" onClick={() => setActiveChatOrderId(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 0, maxWidth: '400px', width: '90%' }}>
-            <ChatWindow orderId={activeChatOrderId} onClose={() => setActiveChatOrderId(null)} />
+            <ChatWindow 
+              orderId={activeChatOrderId} 
+              onClose={() => setActiveChatOrderId(null)} 
+              isClosed={['DELIVERED', 'CANCELLED'].includes(myOrders.find(o => o.id === activeChatOrderId)?.status || '')}
+            />
           </div>
         </div>
       )}

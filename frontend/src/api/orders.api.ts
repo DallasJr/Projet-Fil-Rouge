@@ -33,6 +33,7 @@ export interface Delivery {
   deliveredAt: string | null
   confirmedByDeliverer: boolean
   confirmedByCustomer: boolean
+  paymentMethod: 'CREDIT_CARD' | 'PAYPAL' | 'CASH'
   delivererId: string | null
   deliverer?: {
     id: string
@@ -149,5 +150,29 @@ export const updateDelivererLocation = async (
   lng: number
 ): Promise<Delivery> => {
   const res = await axiosClient.patch<Delivery>(`/orders/deliveries/${deliveryId}/location`, { lat, lng })
+  return res.data
+}
+
+// --- AUDIT LOG ---
+
+export interface AuditLog {
+  id: string
+  orderId: string
+  actorId: string
+  actor: {
+    id: string
+    name: string
+    email: string
+    role: string
+  }
+  action: 'STATUS_CHANGE' | 'DELIVERER_ASSIGNED' | 'DELIVERER_REPLACED' | 'DELIVERY_CANCELLED'
+  oldValue: string | null
+  newValue: string | null
+  note: string | null
+  createdAt: string
+}
+
+export const getOrderAuditLogs = async (orderId: string): Promise<AuditLog[]> => {
+  const res = await axiosClient.get<AuditLog[]>(`/orders/${orderId}/audit-logs`)
   return res.data
 }

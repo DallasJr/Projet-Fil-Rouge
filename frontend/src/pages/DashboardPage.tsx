@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
-import { Clock, ChefHat, Package, CheckCircle, XCircle, Truck, AlertCircle, RefreshCw, MapPin, X } from 'lucide-react'
-import { getAllOrders, updateOrderStatus } from '../api/orders.api'
-import type { Order, OrderStatus } from '../api/orders.api'
+import { Clock, ChefHat, Package, CheckCircle, XCircle, Truck, AlertCircle, RefreshCw, MapPin, X, ClipboardList } from 'lucide-react'
+import { getAllOrders, updateOrderStatus, getOrderAuditLogs } from '../api/orders.api'
+import type { Order, OrderStatus, AuditLog } from '../api/orders.api'
 import { getAllUsers, assignDeliverer } from '../api/admin.api'
 import type { UserDetail } from '../api/admin.api'
 import { useSocket } from '../contexts/SocketContext'
@@ -37,6 +37,10 @@ const DashboardPage = () => {
   
   // supervision state
   const [trackingOrder, setTrackingOrder] = useState<Order | null>(null)
+  // audit log state
+  const [auditOrder, setAuditOrder] = useState<Order | null>(null)
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false)
 
   const fetchOrders = async () => {
     setIsLoading(true)
@@ -96,10 +100,24 @@ const DashboardPage = () => {
     try {
       const updated = await updateOrderStatus(orderId, newStatus)
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, ...updated } : o))
-    } catch {
-      setError('Impossible de mettre à jour le statut.')
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Impossible de mettre à jour le statut.')
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  const loadAuditLogs = async (order: Order) => {
+    setAuditOrder(order)
+    setAuditLogs([])
+    setIsLoadingAudit(true)
+    try {
+      const logs = await getOrderAuditLogs(order.id)
+      setAuditLogs(logs)
+    } catch {
+      setError('Impossible de charger le journal d\'audit.')
+    } finally {
+      setIsLoadingAudit(false)
     }
   }
 
@@ -108,8 +126,11 @@ const DashboardPage = () => {
     setIsAssignModalOpen(true)
     setIsLoadingDeliverers(true)
     try {
-      const data = await getAllUsers('DELIVERER', true)
-      setDeliverers(data)
+      const [deliverersData, adminsData] = await Promise.all([
+        getAllUsers('DELIVERER', true),
+        getAllUsers('ADMIN', true)
+      ])
+      setDeliverers([...deliverersData, ...adminsData])
     } catch {
       setError('Impossible de charger les livreurs.')
     } finally {
@@ -221,6 +242,9 @@ const DashboardPage = () => {
                 const nextStatus = currentIndex >= 0 && currentIndex < STATUS_FLOW.length - 1
                   ? STATUS_FLOW[currentIndex + 1]
                   : null
+                const prevStatus = currentIndex > 0 && currentIndex <= STATUS_FLOW.length - 1
+                  ? STATUS_FLOW[currentIndex - 1]
+                  : null
 
                 return (
                   <tr key={order.id} id={`row-${order.id}`}>
@@ -292,6 +316,25 @@ const DashboardPage = () => {
                             onClick={() => setTrackingOrder(order)}
                           >
                             <MapPin size={11} /> Carte
+                          </button>
+                        )}
+                        <button
+                          id={`audit-${order.id}`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => loadAuditLogs(order)}
+                        >
+                          <ClipboardList size={11} /> Historique
+                        </button>
+                        {prevStatus && (
+                          <button
+                            id={`rollback-${order.id}`}
+                            className="btn btn-secondary btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#64748b', color: '#fff' }}
+                            onClick={() => handleStatusChange(order.id, prevStatus)}
+                            disabled={updatingId === order.id}
+                          >
+                            {updatingId === order.id ? <span className="btn-spinner"></span> : `← ${statusConfig[prevStatus].label}`}
                           </button>
                         )}
                         {nextStatus && (
@@ -389,20 +432,87 @@ const DashboardPage = () => {
         </div>
       )}
 
+      {/* Modal Journal d'Audit */}
+      {auditOrder && (
+        <div className="modal-backdrop" onClick={() => setAuditOrder(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px', width: '95%', padding: '24px', borderRadius: '16px', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontWeight: 'bold', fontSize: '17px' }}>📋 Journal d'audit</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>Commande #{auditOrder.id.slice(-6).toUpperCase()}</p>
+              </div>
+              <button onClick={() => setAuditOrder(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}>&times;</button>
+            </div>
+
+            {isLoadingAudit ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>Chargement…</div>
+            ) : auditLogs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                <ClipboardList size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                <p style={{ margin: 0 }}>Aucun événement enregistré pour cette commande.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {auditLogs.map((log, i) => {
+                  const actionLabels: Record<string, { label: string; color: string; icon: string }> = {
+                    STATUS_CHANGE:       { label: 'Changement de statut', color: '#3b82f6', icon: '🔄' },
+                    DELIVERER_ASSIGNED:  { label: 'Livreur assigné',       color: '#10b981', icon: '🚴' },
+                    DELIVERER_REPLACED:  { label: 'Livreur remplacé',      color: '#f59e0b', icon: '🔁' },
+                    DELIVERY_CANCELLED:  { label: 'Livraison annulée',     color: '#ef4444', icon: '❌' },
+                  }
+                  const cfg = actionLabels[log.action] ?? { label: log.action, color: '#64748b', icon: '📝' }
+                  const roleColors: Record<string, string> = { ADMIN: '#7c3aed', DELIVERER: '#0284c7', CLIENT: '#059669' }
+                  const roleColor = roleColors[log.actor.role] ?? '#64748b'
+
+                  return (
+                    <div key={log.id} style={{
+                      display: 'flex',
+                      gap: '12px',
+                      padding: '12px',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0',
+                      backgroundColor: i % 2 === 0 ? '#f8fafc' : '#fff',
+                      position: 'relative'
+                    }}>
+                      <div style={{ fontSize: '20px', flexShrink: 0, lineHeight: 1 }}>{cfg.icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '4px' }}>
+                          <span style={{ fontWeight: '600', fontSize: '13px', color: cfg.color }}>{cfg.label}</span>
+                          <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                            {new Date(log.createdAt).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                          Par <span style={{ fontWeight: '600', color: roleColor }}>{log.actor.name}</span>
+                          <span style={{ marginLeft: '6px', padding: '1px 6px', borderRadius: '4px', backgroundColor: roleColor + '20', color: roleColor, fontSize: '10px', fontWeight: '600' }}>
+                            {log.actor.role}
+                          </span>
+                        </div>
+                        {(log.oldValue || log.newValue) && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '12px' }}>
+                            {log.oldValue && <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: '600' }}>{log.oldValue}</span>}
+                            {log.oldValue && log.newValue && <span style={{ color: '#94a3b8' }}>→</span>}
+                            {log.newValue && <span style={{ padding: '2px 8px', borderRadius: '4px', backgroundColor: '#dcfce7', color: '#15803d', fontWeight: '600' }}>{log.newValue}</span>}
+                          </div>
+                        )}
+                        {log.note && <div style={{ marginTop: '4px', fontSize: '11px', color: '#64748b', fontStyle: 'italic' }}>{log.note}</div>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* Modal Carte Supervision pour l'Admin */}
       {trackingOrder && (
         <div className="modal-backdrop" onClick={() => setTrackingOrder(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '95%', padding: '20px', borderRadius: '16px' }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 className="modal-title" style={{ margin: 0, fontWeight: 'bold' }}>Supervision Livraison #{trackingOrder.id.slice(-6).toUpperCase()}</h3>
-              <button 
-                onClick={() => setTrackingOrder(null)} 
-                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}
-              >
-                &times;
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, fontWeight: 'bold' }}>Supervision Livraison #{trackingOrder.id.slice(-6).toUpperCase()}</h3>
+              <button onClick={() => setTrackingOrder(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}>&times;</button>
             </div>
-            
             <div style={{ marginBottom: '15px' }}>
               <DeliveryMap
                 destLat={trackingOrder.delivery?.destLat}
@@ -413,10 +523,9 @@ const DashboardPage = () => {
                 height="350px"
               />
             </div>
-            
             <div style={{ fontSize: '14px', color: '#444' }}>
               <div style={{ marginBottom: '5px' }}>
-                📍 Adresse de livraison : <span style={{ fontWeight: '600' }}>{trackingOrder.delivery?.deliveryAddress}</span>
+                📍 Adresse : <span style={{ fontWeight: '600' }}>{trackingOrder.delivery?.deliveryAddress}</span>
               </div>
               {trackingOrder.delivery?.deliverer && (
                 <div style={{ color: '#15803d', fontWeight: '500', marginBottom: '5px' }}>
@@ -425,7 +534,7 @@ const DashboardPage = () => {
               )}
               {trackingOrder.delivery?.delivererLat && (
                 <div style={{ fontSize: '12px', color: '#64748b' }}>
-                  Position actuelle : {trackingOrder.delivery.delivererLat.toFixed(5)}, {trackingOrder.delivery.delivererLng?.toFixed(5)}
+                  Position : {trackingOrder.delivery.delivererLat.toFixed(5)}, {trackingOrder.delivery.delivererLng?.toFixed(5)}
                 </div>
               )}
             </div>
