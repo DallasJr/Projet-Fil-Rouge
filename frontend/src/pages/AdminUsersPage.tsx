@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Plus, Users, Mail, Phone, Calendar, Shield, UserX, AlertCircle } from 'lucide-react'
-import { getAllUsers, createDeliverer, deleteUser, UserDetail } from '../api/admin.api'
+import { Trash2, Plus, Users, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { getAllUsers, createDeliverer, deleteUser } from '../api/admin.api'
+import type { UserDetail } from '../api/admin.api'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 
@@ -16,6 +17,8 @@ const AdminUsersPage = () => {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [phone, setPhone] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -57,6 +60,16 @@ const AdminUsersPage = () => {
   const handleCreateDeliverer = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (password !== confirmPassword) {
+      setError('Les mots de passe ne correspondent pas.')
+      return
+    }
+    if (password.length < 6) {
+      setError('Le mot de passe doit faire au moins 6 caractères.')
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -67,6 +80,7 @@ const AdminUsersPage = () => {
       setName('')
       setEmail('')
       setPassword('')
+      setConfirmPassword('')
       setPhone('')
       
       // Recharger les utilisateurs
@@ -218,14 +232,48 @@ const AdminUsersPage = () => {
 
             <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: '500', color: '#444' }}>Mot de passe temporaire</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 6 caractères"
-                required
-                style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', outline: 'none' }}
-              />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 6 caractères"
+                  required
+                  style={{ width: '100%', padding: '8px 40px 8px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#999',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 0
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '13px', fontWeight: '500', color: '#444' }}>Confirmer le mot de passe</label>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Répétez le mot de passe"
+                  required
+                  style={{ width: '100%', padding: '8px 40px 8px 12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', outline: 'none' }}
+                />
+              </div>
             </div>
 
             <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

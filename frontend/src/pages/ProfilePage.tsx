@@ -11,7 +11,7 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
 }
 
 const ProfilePage = () => {
-  const { user: authUser, logout } = useAuth()
+  const { user: authUser, logout, setAvailability } = useAuth()
   const [profile, setProfile] = useState<AuthUser & { createdAt?: string } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -110,6 +110,57 @@ const ProfilePage = () => {
                       day: '2-digit', month: 'long', year: 'numeric'
                     })}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {profile?.role === 'DELIVERER' && (
+              <div className="profile-field" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1rem', marginTop: '1rem' }}>
+                <div className="profile-field-icon" style={{ color: profile?.isAvailable ? '#22c55e' : '#ef4444' }}>
+                  <Shield size={16} />
+                </div>
+                <div className="profile-field-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '12px' }}>
+                  <div>
+                    <div className="profile-field-label">Statut de disponibilité</div>
+                    <div className="profile-field-value" style={{ color: profile?.isAvailable ? '#22c55e' : '#ef4444', fontWeight: 'bold' }}>
+                      {profile?.isAvailable ? '🟢 En ligne (Disponible)' : '🔴 Hors ligne'}
+                    </div>
+                  </div>
+                  <label className="switch" style={{ position: 'relative', display: 'inline-block', width: '40px', height: '22px', flexShrink: 0 }}>
+                    <input
+                      id="deliverer-availability-toggle"
+                      type="checkbox"
+                      checked={!!profile?.isAvailable}
+                      onChange={async (e) => {
+                        try {
+                          await setAvailability(e.target.checked)
+                          setProfile(prev => prev ? { ...prev, isAvailable: e.target.checked } : null)
+                        } catch (err) {
+                          setError('Impossible de mettre à jour le statut de disponibilité.')
+                        }
+                      }}
+                      style={{ opacity: 0, width: 0, height: 0 }}
+                    />
+                    <span className="slider" style={{
+                      position: 'absolute',
+                      cursor: 'pointer',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: profile?.isAvailable ? '#22c55e' : '#ccc',
+                      transition: '.4s',
+                      borderRadius: '34px'
+                    }}>
+                      <span style={{
+                        position: 'absolute',
+                        content: '""',
+                        height: '16px', width: '16px',
+                        left: profile?.isAvailable ? '21px' : '3px',
+                        bottom: '3px',
+                        backgroundColor: 'white',
+                        transition: '.4s',
+                        borderRadius: '50%'
+                      }} />
+                    </span>
+                  </label>
                 </div>
               </div>
             )}

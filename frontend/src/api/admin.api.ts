@@ -1,5 +1,5 @@
 import axiosClient from './axiosClient'
-import { Delivery } from './orders.api'
+import type { Delivery } from './orders.api'
 
 export interface UserDetail {
   id: string
@@ -7,6 +7,7 @@ export interface UserDetail {
   email: string
   phone: string | null
   role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
+  isAvailable?: boolean
   createdAt: string
 }
 
@@ -18,10 +19,12 @@ export interface CreateDelivererPayload {
 }
 
 // Liste des utilisateurs
-export const getAllUsers = async (role?: string): Promise<UserDetail[]> => {
-  const res = await axiosClient.get<UserDetail[]>('/admin/users', {
-    params: role ? { role } : undefined
-  })
+export const getAllUsers = async (role?: string, isAvailable?: boolean): Promise<UserDetail[]> => {
+  const params: any = {}
+  if (role) params.role = role
+  if (isAvailable !== undefined) params.isAvailable = isAvailable
+
+  const res = await axiosClient.get<UserDetail[]>('/admin/users', { params })
   return res.data
 }
 
