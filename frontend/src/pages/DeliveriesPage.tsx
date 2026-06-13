@@ -717,7 +717,27 @@ const DeliveriesPage = () => {
                         <button id={`delivered-${delivery.id}`} className="btn btn-primary btn-sm" onClick={() => handleStatusUpdate(delivery.id, 'DELIVERED')} disabled={actionId === delivery.id}>
                           {actionId === delivery.id ? <span className="btn-spinner"></span> : '✅ Livraison effectuée'}
                         </button>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444' }}
+                          onClick={() => handleRollbackStatus(delivery.id, 'ASSIGNED')}
+                          disabled={actionId === delivery.id}
+                          title="Retourner à l'état Assignée"
+                        >
+                          🔄 Retour (Assignée)
+                        </button>
                       </>
+                    )}
+                    {delivery.status === 'DELIVERED' && !delivery.confirmedByCustomer && !delivery.confirmedByDeliverer && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#ef4444' }}
+                        onClick={() => handleRollbackStatus(delivery.id, 'PICKED_UP')}
+                        disabled={actionId === delivery.id}
+                        title="Retourner à l'état Récupérée"
+                      >
+                        🔄 Retour (Récupérée)
+                      </button>
                     )}
 
                     <button className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }} onClick={() => setActiveChatOrderId(order.id)}>

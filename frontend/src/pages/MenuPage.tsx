@@ -78,7 +78,7 @@ const CategoryNav = ({
 )
 
 const MenuPage = () => {
-  const { isAuthenticated, isDeliverer } = useAuth()
+  const { isDeliverer } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -88,6 +88,7 @@ const MenuPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [search, setSearch] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [isOrdering, setIsOrdering] = useState(false)
   const [error, setError] = useState('')
   const [restaurantId, setRestaurantId] = useState(RESTAURANT_ID)
 

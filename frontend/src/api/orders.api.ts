@@ -19,6 +19,8 @@ export interface OrderItemDetail {
     id: string
     name: string
     imageUrl?: string | null
+    description?: string | null
+    price?: number
   }
 }
 
