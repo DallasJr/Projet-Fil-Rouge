@@ -27,11 +27,8 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(password, salt)
 
-    // 4. Déterminer le rôle (Optionnel : par défaut CLIENT)
+    // 4. Déterminer le rôle (Toujours CLIENT pour l'inscription publique)
     let userRole: Role = Role.CLIENT
-    if (role && Object.values(Role).includes(role as Role)) {
-      userRole = role as Role
-    }
 
     // 5. Créer l'utilisateur dans la base PostgreSQL via Prisma
     const user = await prisma.user.create({

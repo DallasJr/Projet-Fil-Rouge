@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ShoppingBag, UtensilsCrossed, LayoutDashboard, LogOut, User, Truck, Settings } from 'lucide-react'
+import { ShoppingBag, UtensilsCrossed, LayoutDashboard, LogOut, User, Truck, Settings, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 const Navbar = () => {
@@ -50,6 +50,10 @@ const Navbar = () => {
             <Link to="/dashboard" id="nav-dashboard" className={`navbar-link ${isActive('/dashboard') ? 'active' : ''}`}>
               <LayoutDashboard size={16} />
               Dashboard
+            </Link>
+            <Link to="/admin/users" id="nav-admin-users" className={`navbar-link ${isActive('/admin/users') ? 'active' : ''}`}>
+              <Users size={16} />
+              Utilisateurs
             </Link>
             <Link to="/admin/menu" id="nav-admin-menu" className={`navbar-link ${isActive('/admin/menu') ? 'active' : ''}`}>
               <Settings size={16} />

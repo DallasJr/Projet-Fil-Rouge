@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
-import { Clock, ChefHat, Package, CheckCircle, XCircle, Truck, AlertCircle, RefreshCw, MapPin } from 'lucide-react'
+import { Clock, ChefHat, Package, CheckCircle, XCircle, Truck, AlertCircle, RefreshCw, MapPin, X } from 'lucide-react'
 import { getAllOrders, updateOrderStatus } from '../api/orders.api'
 import type { Order, OrderStatus } from '../api/orders.api'
+import { getAllUsers, assignDeliverer } from '../api/admin.api'
+import type { UserDetail } from '../api/admin.api'
 
 const statusConfig: Record<OrderStatus, { label: string; icon: ReactElement; className: string }> = {
   PENDING:    { label: 'En attente',     icon: <Clock size={13} />,        className: 'status-pending' },
@@ -22,6 +24,13 @@ const DashboardPage = () => {
   const [error, setError] = useState('')
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'ALL'>('ALL')
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  // Modale d'assignation
+  const [deliverers, setDeliverers] = useState<UserDetail[]>([])
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null)
+  const [isLoadingDeliverers, setIsLoadingDeliverers] = useState(false)
+  const [isAssigning, setIsAssigning] = useState(false)
 
   const fetchOrders = async () => {
     setIsLoading(true)
@@ -46,6 +55,35 @@ const DashboardPage = () => {
       setError('Impossible de mettre à jour le statut.')
     } finally {
       setUpdatingId(null)
+    }
+  }
+
+  const openAssignModal = async (deliveryId: string) => {
+    setSelectedDeliveryId(deliveryId)
+    setIsAssignModalOpen(true)
+    setIsLoadingDeliverers(true)
+    try {
+      const data = await getAllUsers('DELIVERER')
+      setDeliverers(data)
+    } catch {
+      setError('Impossible de charger les livreurs.')
+    } finally {
+      setIsLoadingDeliverers(false)
+    }
+  }
+
+  const handleAssign = async (delivererId: string) => {
+    if (!selectedDeliveryId) return
+    setIsAssigning(true)
+    try {
+      await assignDeliverer(selectedDeliveryId, delivererId)
+      setIsAssignModalOpen(false)
+      setSelectedDeliveryId(null)
+      fetchOrders()
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Impossible d\'assigner le livreur.')
+    } finally {
+      setIsAssigning(false)
     }
   }
 
@@ -124,6 +162,7 @@ const DashboardPage = () => {
                 <th>Client</th>
                 <th>Articles</th>
                 <th>Livraison</th>
+                <th>Livreur</th>
                 <th>Total</th>
                 <th>Date</th>
                 <th>Statut</th>
@@ -162,6 +201,34 @@ const DashboardPage = () => {
                         <span className="text-muted text-sm">Sur place</span>
                       )}
                     </td>
+                    <td>
+                      {order.delivery ? (
+                        order.delivery.deliverer ? (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: '500', fontSize: '13px' }}>{order.delivery.deliverer.name}</span>
+                            {order.delivery.status === 'CANCELLED' && <span style={{ color: '#ef4444', fontSize: '10px' }}>(Annulée)</span>}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => openAssignModal(order.delivery!.id)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '11px',
+                              backgroundColor: '#0284c7',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontWeight: '600'
+                            }}
+                          >
+                            Assigner
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-muted text-sm">—</span>
+                      )}
+                    </td>
                     <td><strong>{order.totalAmount.toFixed(2)} €</strong></td>
                     <td>
                       {new Date(order.createdAt).toLocaleDateString('fr-FR', {
@@ -197,8 +264,79 @@ const DashboardPage = () => {
           </table>
         </div>
       )}
+
+      {/* Modale d'assignation de livreur */}
+      {isAssignModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            padding: '24px',
+            borderRadius: '12px',
+            width: '400px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Assigner un livreur</h3>
+              <button
+                onClick={() => setIsAssignModalOpen(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {isLoadingDeliverers ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>Chargement des livreurs...</div>
+            ) : deliverers.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>Aucun livreur disponible. Veuillez en créer un dans l'onglet Utilisateurs.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '250px', overflowY: 'auto' }}>
+                {deliverers.map((deliverer) => (
+                  <button
+                    key={deliverer.id}
+                    disabled={isAssigning}
+                    onClick={() => handleAssign(deliverer.id)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1px solid #eee',
+                      backgroundColor: '#f9f9f9',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                  >
+                    <div>
+                      <div style={{ fontWeight: '500' }}>{deliverer.name}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>{deliverer.email}</div>
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#0284c7', fontWeight: '600' }}>Sélectionner</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default DashboardPage
+
