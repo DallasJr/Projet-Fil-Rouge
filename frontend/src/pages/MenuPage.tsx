@@ -1150,9 +1150,10 @@ const MenuPage = () => {
                     type="button"
                     className="btn btn-primary"
                     onClick={() => handleConfirmMockPayment()}
+                    disabled={isOrdering}
                     style={{ flex: 2 }}
                   >
-                    Confirmer & Payer — {(cartTotal + (withDelivery && cartTotal < FREE_DELIVERY_THRESHOLD ? deliveryFee : 0)).toFixed(2)} €
+                    {isOrdering ? 'Paiement en cours...' : `Confirmer & Payer — ${(cartTotal + (withDelivery && cartTotal < FREE_DELIVERY_THRESHOLD ? deliveryFee : 0)).toFixed(2)} €`}
                   </button>
                 )}
               </div>
