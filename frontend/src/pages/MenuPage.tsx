@@ -163,10 +163,12 @@ const MenuPage = () => {
             const cartItem = cart.find((i) => i.id === item.id)
             return (
               <div key={item.id} id={`product-${item.id}`} className="product-card">
-                {item.imageUrl
+                <div className="product-image-frame">
+                  {item.imageUrl
                   ? <img src={item.imageUrl} alt={item.name} className="product-image" />
                   : <div className="product-image-placeholder">🍽️</div>
                 }
+                </div>
                 <div className="product-info">
                   <span className="product-category">{item.category?.name}</span>
                   <h3 className="product-name">{item.name}</h3>

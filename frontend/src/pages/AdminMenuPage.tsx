@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, AlertCircle, CheckCircle, X, Tag, UtensilsCrossed } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertCircle, CheckCircle, X, Tag, UtensilsCrossed, UploadCloud } from 'lucide-react'
 import { getCategories, getItems, createCategory, deleteCategory, createItem, updateItem, deleteItem } from '../api/menu.api'
+import { uploadImage } from '../api/uploads.api'
 import type { Category, Item } from '../api/menu.api'
 
 const RESTAURANT_ID = import.meta.env.VITE_RESTAURANT_ID || ''
@@ -23,6 +24,7 @@ const AdminMenuPage = () => {
   const [itemForm, setItemForm] = useState({ name: '', description: '', price: '', imageUrl: '', isAvailable: true, categoryId: '' })
   const [catForm, setCatForm] = useState({ name: '' })
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
 
   const showSuccess = (msg: string) => {
     setSuccess(msg)
@@ -87,6 +89,33 @@ const AdminMenuPage = () => {
       setError(err.response?.data?.error || 'Erreur lors de la sauvegarde.')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleImageUpload = async (file: File | null) => {
+    if (!file) return
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!allowedTypes.includes(file.type)) {
+      setError('Format image non supporte. Utilisez JPG, PNG, WEBP ou GIF.')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image trop volumineuse. Taille maximale: 5 Mo.')
+      return
+    }
+
+    setIsUploadingImage(true)
+    setError('')
+    try {
+      const uploaded = await uploadImage(file)
+      setItemForm((form) => ({ ...form, imageUrl: uploaded.url }))
+      showSuccess('Image envoyee vers le stockage cloud.')
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Impossible d'uploader cette image.")
+    } finally {
+      setIsUploadingImage(false)
     }
   }
 
@@ -299,7 +328,31 @@ const AdminMenuPage = () => {
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">URL Image (optionnel)</label>
+                <label className="form-label">Image (optionnel)</label>
+                <div className="image-upload-field">
+                  {itemForm.imageUrl
+                    ? <img src={itemForm.imageUrl} alt={itemForm.name || 'Apercu du plat'} className="image-upload-preview" />
+                    : <div className="image-upload-placeholder"><UploadCloud size={20} /></div>
+                  }
+                  <div className="image-upload-controls">
+                    <label className="btn btn-secondary btn-sm" htmlFor="item-image-file">
+                      <UploadCloud size={13} /> {isUploadingImage ? 'Upload...' : 'Choisir une image'}
+                    </label>
+                    <input
+                      id="item-image-file"
+                      className="visually-hidden"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      disabled={isUploadingImage}
+                      onChange={e => handleImageUpload(e.target.files?.[0] || null)}
+                    />
+                    {itemForm.imageUrl && (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setItemForm(f => ({ ...f, imageUrl: '' }))}>
+                        Retirer
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <input id="item-image" className="form-input" type="url" placeholder="https://..." value={itemForm.imageUrl} onChange={e => setItemForm(f => ({ ...f, imageUrl: e.target.value }))} />
               </div>
               <label className="toggle-label">

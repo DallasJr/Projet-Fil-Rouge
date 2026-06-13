@@ -44,7 +44,7 @@ export const createItem = async (data: {
   name: string
   description?: string
   price: number
-  imageUrl?: string
+  imageUrl?: string | null
   isAvailable?: boolean
   categoryId: string
 }): Promise<Item> => {

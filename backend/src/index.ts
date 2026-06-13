@@ -4,13 +4,17 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
 import cors from 'cors'
-import 'dotenv/config'
+import dotenv from 'dotenv'
+import path from 'path'
 
 // Importer nos routes d'authentification, de menu et de commande
 import authRoutes from './routes/auth.routes'
 import menuRoutes from './routes/menu.routes'
 import orderRoutes from './routes/order.routes'
+import uploadRoutes from './routes/upload.routes'
 import { apiLimiter } from './middlewares/security.middleware'
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
 
 // Utilisation de pg native pour l'adapter Prisma
 const pool = new pg.Pool({
@@ -32,6 +36,7 @@ app.use(apiLimiter)
 app.use('/api/auth', authRoutes)
 app.use('/api/menu', menuRoutes)
 app.use('/api/orders', orderRoutes)
+app.use('/api/uploads', uploadRoutes)
 
 app.get('/health', async (req, res) => {
   try {
