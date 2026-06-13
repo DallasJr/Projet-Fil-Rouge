@@ -33,6 +33,7 @@ export interface Delivery {
   deliveredAt: string | null
   confirmedByDeliverer: boolean
   confirmedByCustomer: boolean
+  acceptedByDeliverer: boolean
   paymentMethod: 'CREDIT_CARD' | 'PAYPAL' | 'CASH'
   delivererId: string | null
   deliverer?: {
@@ -46,6 +47,8 @@ export interface Delivery {
   destLat?: number | null
   destLng?: number | null
   estimatedTime?: number | null
+  createdAt?: string
+  order?: Order
 }
 
 export interface Order {
@@ -118,6 +121,16 @@ export const updateDeliveryStatus = async (
     status,
     ...(isPaid !== undefined && { isPaid }),
   })
+  return res.data
+}
+
+export const acceptAssignment = async (deliveryId: string): Promise<Delivery> => {
+  const res = await axiosClient.patch<Delivery>(`/orders/deliveries/${deliveryId}/accept-assignment`)
+  return res.data
+}
+
+export const rejectAssignment = async (deliveryId: string): Promise<Delivery> => {
+  const res = await axiosClient.patch<Delivery>(`/orders/deliveries/${deliveryId}/reject-assignment`)
   return res.data
 }
 

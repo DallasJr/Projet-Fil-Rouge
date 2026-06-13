@@ -46,6 +46,8 @@ model User {
   phone            String?
   role             Role              @default(CLIENT)
   isAvailable      Boolean           @default(true)
+  isSuspended      Boolean           @default(false)
+  suspendedReason  String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   
@@ -160,6 +162,7 @@ model Delivery {
   deliveredAt    DateTime?
   confirmedByDeliverer Boolean  @default(false)
   confirmedByCustomer  Boolean  @default(false)
+  acceptedByDeliverer  Boolean  @default(false)
   // Lot 2 — GPS & Géolocalisation
   delivererLat   Float?         // Latitude actuelle du livreur (mis à jour en temps réel)
   delivererLng   Float?         // Longitude actuelle du livreur

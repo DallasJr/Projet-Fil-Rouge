@@ -16,6 +16,9 @@ interface AuthenticatedSocket extends Socket {
 
 let io: SocketIOServer | null = null
 
+// Map userId => Set de socketIds (un même utilisateur peut avoir plusieurs onglets)
+const connectedUsers = new Map<string, Set<string>>()
+
 export const initSocket = (server: HTTPServer) => {
   io = new SocketIOServer(server, {
     cors: {
@@ -53,6 +56,19 @@ export const initSocket = (server: HTTPServer) => {
     if (socket.user?.id) {
       socket.join(`user:${socket.user.id}`)
       console.log(`👤 L'utilisateur a rejoint son salon de notification personnel : user:${socket.user.id}`)
+
+      // Ajouter à la map des connectés
+      if (!connectedUsers.has(socket.user.id)) {
+        connectedUsers.set(socket.user.id, new Set())
+      }
+      connectedUsers.get(socket.user.id)!.add(socket.id)
+
+      // Notifier les admins qu'un utilisateur est en ligne
+      io?.to('role:ADMIN').emit('user_online', {
+        userId: socket.user.id,
+        email: socket.user.email,
+        role: socket.user.role
+      })
     }
 
     if (socket.user?.role) {
@@ -71,6 +87,7 @@ export const initSocket = (server: HTTPServer) => {
       socket.leave(`order:${orderId}`)
       console.log(`👤 L'utilisateur ${socket.user?.email} a quitté le salon : order:${orderId}`)
     })
+
 
     // Réception d'un message instantané
     socket.on('send_message', async (data: { orderId: string; content: string }) => {
@@ -106,11 +123,64 @@ export const initSocket = (server: HTTPServer) => {
       }
     })
 
-    socket.on('disconnect', () => {
+    // Indicateur de frappe (typing)
+    socket.on('typing', (data: { orderId: string; isTyping: boolean }) => {
+      if (!socket.user) return
+      const { orderId, isTyping } = data
+
+      // Récupérer le nom de l'utilisateur depuis la base de données (optimisation: on le broadcaste avec le socket)
+      prisma.user.findUnique({ where: { id: socket.user.id }, select: { name: true } })
+        .then((user) => {
+          if (!user) return
+          // Diffuser à tous sauf l'émetteur
+          socket.to(`order:${orderId}`).emit('user_typing', {
+            userId: socket.user!.id,
+            name: user.name,
+            orderId,
+            isTyping,
+          })
+        })
+        .catch(() => {})
+    })
+
+    socket.on('get_online_users', () => {
+      // Envoyer la liste des IDs d'utilisateurs en ligne uniquement à l'admin demandeur
+      const onlineIds = Array.from(connectedUsers.keys())
+      socket.emit('online_users_list', onlineIds)
+    })
+
+    socket.on('disconnect', async () => {
       console.log(`🔌 Client déconnecté : ${socket.user?.email}`)
+
+      // Retirer de la map des connectés
+      if (socket.user?.id) {
+        const sockets = connectedUsers.get(socket.user.id)
+        if (sockets) {
+          sockets.delete(socket.id)
+          if (sockets.size === 0) {
+            // Dernier onglet fermé -> vraiment hors-ligne
+            connectedUsers.delete(socket.user.id)
+            io?.to('role:ADMIN').emit('user_offline', { userId: socket.user.id })
+          }
+        }
+      }
+
+      // Si c'est un livreur, le passer hors-ligne automatiquement
+      if (socket.user?.role === 'DELIVERER') {
+        try {
+          await prisma.user.update({
+            where: { id: socket.user.id },
+            data: { isAvailable: false }
+          })
+          console.log(`📴 Livreur ${socket.user.email} passé hors-ligne automatiquement.`)
+        } catch (err) {
+          console.error('Erreur mise à jour disponibilité livreur:', err)
+        }
+      }
     })
   })
 }
+
 
 // Fonction utilitaire pour envoyer des notifications ou statuts mis à jour
 export const notifyOrderStatusUpdate = async (orderId: string, status: string) => {

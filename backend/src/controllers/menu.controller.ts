@@ -65,8 +65,9 @@ export const deleteCategory = async (req: AuthenticatedRequest, res: Response) =
 // Récupérer tous les items
 export const getItems = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const isAdmin = req.user?.role === 'ADMIN'
     const items = await prisma.item.findMany({
-      where: { isAvailable: true },
+      where: isAdmin ? {} : { isAvailable: true },
       include: { category: true }
     })
     return res.json(items)

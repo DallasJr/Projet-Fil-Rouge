@@ -26,12 +26,16 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
 
+              {/* Routes publiques utilisant le Layout */}
+              <Route element={<Layout />}>
+                <Route path="/menu" element={<MenuPage />} />
+              </Route>
+
               {/* Routes protégées (connecté) */}
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
 
-                  {/* Toutes les pages accessibles une fois connecté */}
-                  <Route path="/menu" element={<MenuPage />} />
+                  {/* Pages accessibles uniquement connecté */}
                   <Route path="/orders" element={<OrdersPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
 
