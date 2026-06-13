@@ -53,3 +53,4 @@ server.listen(PORT, () => {
 })
 
 export { prisma }
+// reload ts-node

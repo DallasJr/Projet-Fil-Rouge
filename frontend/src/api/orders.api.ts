@@ -40,6 +40,11 @@ export interface Delivery {
     email?: string
     phone?: string | null
   } | null
+  delivererLat?: number | null
+  delivererLng?: number | null
+  destLat?: number | null
+  destLng?: number | null
+  estimatedTime?: number | null
 }
 
 export interface Order {
@@ -135,5 +140,14 @@ export const getOrderMessages = async (orderId: string): Promise<Message[]> => {
 
 export const confirmDelivery = async (orderId: string): Promise<Order> => {
   const res = await axiosClient.patch<Order>(`/orders/${orderId}/confirm`)
+  return res.data
+}
+
+export const updateDelivererLocation = async (
+  deliveryId: string,
+  lat: number,
+  lng: number
+): Promise<Delivery> => {
+  const res = await axiosClient.patch<Delivery>(`/orders/deliveries/${deliveryId}/location`, { lat, lng })
   return res.data
 }

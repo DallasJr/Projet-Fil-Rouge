@@ -5,6 +5,7 @@ import { getMyOrders, confirmDelivery } from '../api/orders.api'
 import type { Order, OrderStatus } from '../api/orders.api'
 import { ChatWindow } from '../components/ChatWindow'
 import { useSocket } from '../contexts/SocketContext'
+import { DeliveryMap } from '../components/DeliveryMap'
 
 const statusConfig: Record<OrderStatus, { label: string; icon: ReactElement; className: string }> = {
   PENDING:    { label: 'En attente',      icon: <Clock size={13} />,        className: 'status-pending' },
@@ -24,6 +25,7 @@ const OrdersPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeChatOrderId, setActiveChatOrderId] = useState<string | null>(null)
+  const [trackingOrder, setTrackingOrder] = useState<Order | null>(null)
   const { socket } = useSocket()
 
   const fetchOrders = async () => {
@@ -47,13 +49,40 @@ const OrdersPage = () => {
 
     const onStatusUpdate = () => fetchOrders()
     const onDeliveryAssigned = () => fetchOrders()
+    const onLocationUpdate = (data: { orderId: string; deliveryId: string; lat: number; lng: number; estimatedTime?: number }) => {
+      console.log('📍 Reçu mise à jour position livreur:', data)
+      setOrders(prevOrders => prevOrders.map(order => {
+        if (order.id === data.orderId && order.delivery) {
+          const updatedOrder = {
+            ...order,
+            delivery: {
+              ...order.delivery,
+              delivererLat: data.lat,
+              delivererLng: data.lng,
+              estimatedTime: data.estimatedTime !== undefined ? data.estimatedTime : order.delivery.estimatedTime
+            }
+          }
+          // Si cette commande est actuellement affichée dans la modal de suivi, on met aussi à jour trackingOrder
+          setTrackingOrder(currentTracking => {
+            if (currentTracking && currentTracking.id === data.orderId) {
+              return updatedOrder
+            }
+            return currentTracking
+          })
+          return updatedOrder
+        }
+        return order
+      }))
+    }
 
     socket.on('order_status_updated', onStatusUpdate)
     socket.on('delivery_assigned', onDeliveryAssigned)
+    socket.on('deliverer_location', onLocationUpdate)
 
     return () => {
       socket.off('order_status_updated', onStatusUpdate)
       socket.off('delivery_assigned', onDeliveryAssigned)
+      socket.off('deliverer_location', onLocationUpdate)
     }
   }, [socket])
 
@@ -201,13 +230,22 @@ const OrdersPage = () => {
                   </span>
                   
                   {order.delivery && order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
-                    <button 
-                      className="btn btn-secondary btn-sm" 
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                      onClick={() => setActiveChatOrderId(order.id)}
-                    >
-                      <MessageSquare size={13} /> Chat Live
-                    </button>
+                    <>
+                      <button 
+                        className="btn btn-secondary btn-sm" 
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        onClick={() => setTrackingOrder(order)}
+                      >
+                        <MapPin size={13} /> Carte Live
+                      </button>
+                      <button 
+                        className="btn btn-secondary btn-sm" 
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        onClick={() => setActiveChatOrderId(order.id)}
+                      >
+                        <MessageSquare size={13} /> Chat Live
+                      </button>
+                    </>
                   )}
 
                   {order.delivery && order.status === 'DELIVERING' && !order.delivery.confirmedByCustomer && (
@@ -233,6 +271,43 @@ const OrdersPage = () => {
         <div className="modal-backdrop" onClick={() => setActiveChatOrderId(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: 0, maxWidth: '400px', width: '90%' }}>
             <ChatWindow orderId={activeChatOrderId} onClose={() => setActiveChatOrderId(null)} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal Carte de Suivi */}
+      {trackingOrder && (
+        <div className="modal-backdrop" onClick={() => setTrackingOrder(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '95%', padding: '20px', borderRadius: '16px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 className="modal-title" style={{ margin: 0, fontWeight: 'bold' }}>Suivi de la livraison #{trackingOrder.id.slice(-6).toUpperCase()}</h3>
+              <button 
+                onClick={() => setTrackingOrder(null)} 
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}
+              >
+                &times;
+              </button>
+            </div>
+            <div style={{ marginBottom: '15px' }}>
+              <DeliveryMap
+                destLat={trackingOrder.delivery?.destLat}
+                destLng={trackingOrder.delivery?.destLng}
+                delivererLat={trackingOrder.delivery?.delivererLat}
+                delivererLng={trackingOrder.delivery?.delivererLng}
+                estimatedTime={trackingOrder.delivery?.estimatedTime}
+                height="350px"
+              />
+            </div>
+            <div style={{ fontSize: '14px', color: '#444' }}>
+              <div style={{ marginBottom: '5px' }}>
+                📍 Adresse de livraison : <span style={{ fontWeight: '600' }}>{trackingOrder.delivery?.deliveryAddress}</span>
+              </div>
+              {trackingOrder.delivery?.deliverer && (
+                <div style={{ color: '#15803d', fontWeight: '500' }}>
+                  🚴 Livreur : {trackingOrder.delivery.deliverer.name} {trackingOrder.delivery.deliverer.phone ? `(${trackingOrder.delivery.deliverer.phone})` : ''}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -2,9 +2,9 @@ import { Response } from 'express'
 import { AuthenticatedRequest } from '../middlewares/auth.middleware'
 import { prisma } from '../index'
 import { OrderStatus, DeliveryStatus, Role, PaymentMethod } from '@prisma/client'
-// Rechargement du client Prisma après migration
-import { notifyOrderStatusUpdate, notifyDeliveryAssigned, notifyOrderCreated } from '../socket'
+import { notifyOrderStatusUpdate, notifyDeliveryAssigned, notifyOrderCreated, notifyDelivererLocation } from '../socket'
 import { createAndSendNotification } from './notification.controller'
+import { geocodeAddress, haversine, calculateETA } from '../utils/haversine'
 
 // --- COMMANDES (ORDERS) ---
 
@@ -63,6 +63,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // Si une adresse de livraison est fournie, on crée automatiquement l'entité de livraison associée
     if (deliveryAddress) {
+      // Lot 2 — Géocodage de l'adresse destination (fallback silencieux si introuvable)
+      const coords = await geocodeAddress(String(deliveryAddress))
+
       await prisma.delivery.create({
         data: {
           orderId: order.id,
@@ -70,9 +73,18 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
           status: DeliveryStatus.ASSIGNED,
           paymentMethod: paymentMethod && Object.values(PaymentMethod).includes(paymentMethod) ? paymentMethod : PaymentMethod.CREDIT_CARD,
           isPaid: false,
-          deliveryFee: 2.50 // Frais fixes de livraison simulés
+          deliveryFee: 2.50,
+          // Coordonnées GPS destination (null si non géocodable)
+          destLat: coords?.lat ?? null,
+          destLng: coords?.lng ?? null
         }
       })
+
+      if (coords) {
+        console.log(`📍 Adresse géocodée : "${deliveryAddress}" → (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)})`)
+      } else {
+        console.warn(`⚠️ Adresse non géocodable : "${deliveryAddress}" — la carte ne sera pas disponible pour cette commande.`)
+      }
     }
 
     // Notifier tous les Admins de la nouvelle commande
@@ -655,5 +667,80 @@ export const confirmDelivery = async (req: AuthenticatedRequest, res: Response) 
   } catch (error: any) {
     console.error('Erreur confirmDelivery:', error)
     return res.status(500).json({ error: 'Impossible de confirmer la réception de la livraison.' })
+  }
+}
+
+// 8. Mise à jour de la position GPS du livreur en temps réel (Lot 2)
+export const updateDelivererLocation = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Non authentifié.' })
+
+    const { id } = req.params
+    const deliveryId = String(id)
+    const { lat, lng } = req.body
+
+    // Validation des coordonnées
+    if (lat === undefined || lng === undefined || isNaN(Number(lat)) || isNaN(Number(lng))) {
+      return res.status(400).json({ error: 'lat et lng (nombres) sont requis.' })
+    }
+
+    const latitude = Number(lat)
+    const longitude = Number(lng)
+
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return res.status(400).json({ error: 'Coordonnées GPS invalides.' })
+    }
+
+    // Récupérer la livraison avec les coordonnées destination
+    const delivery = await prisma.delivery.findUnique({
+      where: { id: deliveryId },
+      include: { order: { select: { customerId: true } } }
+    })
+
+    if (!delivery) {
+      return res.status(404).json({ error: 'Livraison non trouvée.' })
+    }
+
+    // Seul le livreur assigné peut mettre à jour sa position
+    if (delivery.delivererId !== req.user.id && req.user.role !== Role.ADMIN) {
+      return res.status(403).json({ error: 'Non autorisé.' })
+    }
+
+    // Calcul de l'ETA si on a les coordonnées destination
+    let eta: number | null = null
+    if (delivery.destLat !== null && delivery.destLng !== null) {
+      const distance = haversine(latitude, longitude, delivery.destLat, delivery.destLng)
+      eta = calculateETA(distance)
+    }
+
+    // Mise à jour en base
+    const updatedDelivery = await prisma.delivery.update({
+      where: { id: deliveryId },
+      data: {
+        delivererLat: latitude,
+        delivererLng: longitude,
+        estimatedTime: eta
+      }
+    })
+
+    // Diffusion via Socket.io
+    notifyDelivererLocation(
+      delivery.orderId,
+      delivery.order.customerId,
+      latitude,
+      longitude,
+      eta
+    )
+
+    return res.json({
+      deliveryId,
+      lat: latitude,
+      lng: longitude,
+      eta,
+      message: 'Position mise à jour.'
+    })
+  } catch (error: any) {
+    console.error('Erreur updateDelivererLocation:', error)
+    return res.status(500).json({ error: 'Impossible de mettre à jour la position.' })
   }
 }

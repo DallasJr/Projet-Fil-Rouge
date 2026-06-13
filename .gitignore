@@ -121,6 +121,10 @@ Thumbs.db
 
 # Notes personnelles avec credentials — NE JAMAIS COMMITTER
 memo.md
+memo0.md
+
+todo.md
+todo0.md
 
 # Scripts de setup one-shot (contiennent des imports de DB)
 backend/scripts/*.js

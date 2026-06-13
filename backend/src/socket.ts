@@ -164,3 +164,19 @@ export const sendSocketNotification = (userId: string, notification: any) => {
   console.log(`📢 Envoi d'une notification socket à l'utilisateur ${userId}`)
   io.to(`user:${userId}`).emit('new_notification', notification)
 }
+
+export const notifyDelivererLocation = (
+  orderId: string,
+  customerId: string,
+  lat: number,
+  lng: number,
+  eta: number | null
+) => {
+  if (!io) return
+  const payload = { orderId, lat, lng, eta }
+  console.log(`📍 Position livreur diffusée pour commande ${orderId} : (${lat.toFixed(5)}, ${lng.toFixed(5)}) ETA=${eta}min`)
+  io.to(`order:${orderId}`).emit('deliverer_location', payload)
+  io.to(`user:${customerId}`).emit('deliverer_location', payload)
+  io.to('role:ADMIN').emit('deliverer_location', payload)
+}
+
