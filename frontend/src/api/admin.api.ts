@@ -8,7 +8,33 @@ export interface UserDetail {
   phone: string | null
   role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
   isAvailable?: boolean
+  isSuspended?: boolean
+  suspendedReason?: string | null
   createdAt: string
+}
+
+export interface UserStats {
+  user: UserDetail
+  clientStats: {
+    totalOrders: number
+    completedOrders: number
+    cancelledOrders: number
+    totalSpent: number
+    avgBasket: number
+    recentOrders: any[]
+    addresses: { id: string; street: string; city: string; zipCode: string; isDefault: boolean }[]
+    deliveryAddresses: string[]
+    reviews: { id: string; rating: number; comment: string | null; createdAt: string }[]
+    avgRatingGiven: number | null
+  }
+  delivererStats: {
+    totalDeliveries: number
+    completedDeliveries: number
+    cancelledDeliveries: number
+    successRate: number
+    totalCommissions: number
+    recentDeliveries: any[]
+  }
 }
 
 export interface CreateDelivererPayload {
@@ -19,12 +45,20 @@ export interface CreateDelivererPayload {
 }
 
 // Liste des utilisateurs
-export const getAllUsers = async (role?: string, isAvailable?: boolean): Promise<UserDetail[]> => {
+export const getAllUsers = async (role?: string, isAvailable?: boolean, dateFrom?: string, dateTo?: string): Promise<UserDetail[]> => {
   const params: any = {}
   if (role) params.role = role
   if (isAvailable !== undefined) params.isAvailable = isAvailable
+  if (dateFrom) params.dateFrom = dateFrom
+  if (dateTo) params.dateTo = dateTo
 
   const res = await axiosClient.get<UserDetail[]>('/admin/users', { params })
+  return res.data
+}
+
+// Statistiques d'un utilisateur
+export const getUserStats = async (id: string): Promise<UserStats> => {
+  const res = await axiosClient.get<UserStats>(`/admin/users/${id}/stats`)
   return res.data
 }
 
@@ -38,6 +72,40 @@ export const createDeliverer = async (data: CreateDelivererPayload): Promise<Use
 export const deleteUser = async (id: string): Promise<{ message: string }> => {
   const res = await axiosClient.delete<{ message: string }>(`/admin/users/${id}`)
   return res.data
+}
+
+// Mettre à jour un utilisateur
+export const updateUser = async (id: string, data: Partial<UserDetail>): Promise<UserDetail> => {
+  const res = await axiosClient.patch<UserDetail>(`/admin/users/${id}`, data)
+  return res.data
+}
+
+// Envoyer un message direct
+export const sendDirectMessage = async (userId: string, message: string): Promise<{ success: boolean }> => {
+  const res = await axiosClient.post(`/admin/users/${userId}/message`, { message })
+  return res.data
+}
+
+// Export CSV
+export const exportUsersCSV = (): void => {
+  const token = localStorage.getItem('token')
+  const baseUrl = axiosClient.defaults.baseURL || ''
+  const url = `${baseUrl}/admin/users/export`
+  const a = document.createElement('a')
+  a.href = url
+  // Ajouter le token via header n'est pas possible avec <a>, on ouvre dans un onglet
+  // À la place on utilise fetch pour blob
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob)
+      a.href = blobUrl
+      a.download = `utilisateurs_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    })
 }
 
 // Assigner un livreur à une livraison

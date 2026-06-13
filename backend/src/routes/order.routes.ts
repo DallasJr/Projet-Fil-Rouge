@@ -12,7 +12,9 @@ import {
   cancelDelivery,
   confirmDelivery,
   updateDelivererLocation,
-  getOrderAuditLogs
+  getOrderAuditLogs,
+  acceptAssignment,
+  rejectAssignment
 } from '../controllers/order.controller'
 import { authenticateJWT, authorizeRoles } from '../middlewares/auth.middleware'
 import { Role } from '@prisma/client'
@@ -30,8 +32,8 @@ router.get('/my-orders', authenticateJWT, authorizeRoles(Role.CLIENT, Role.DELIV
 // Le restaurant (ADMIN) ou les livreurs peuvent voir toutes les commandes
 router.get('/all', authenticateJWT, authorizeRoles(Role.ADMIN, Role.DELIVERER), getAllOrders)
 
-// Le restaurant (ADMIN) peut changer le statut de préparation de la commande
-router.patch('/:id/status', authenticateJWT, authorizeRoles(Role.ADMIN), updateOrderStatus)
+// Le restaurant (ADMIN) ou le client (pour annulation) peut changer le statut de la commande
+router.patch('/:id/status', authenticateJWT, authorizeRoles(Role.ADMIN, Role.CLIENT), updateOrderStatus)
 
 // Le client (CLIENT) ou ADMIN peut confirmer la réception de la commande
 router.patch('/:id/confirm', authenticateJWT, authorizeRoles(Role.CLIENT, Role.ADMIN), confirmDelivery)
@@ -57,10 +59,14 @@ router.patch('/deliveries/:id/assign', authenticateJWT, authorizeRoles(Role.ADMI
 // Un livreur (s'il est assigné) ou un admin peut annuler la livraison
 router.patch('/deliveries/:id/cancel', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), cancelDelivery)
 
+// Un livreur ou admin peut accepter ou refuser une proposition d'assignation
+router.patch('/deliveries/:id/accept-assignment', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), acceptAssignment)
+router.patch('/deliveries/:id/reject-assignment', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), rejectAssignment)
+
 // Lot 2 — Mise à jour de la position GPS du livreur en temps réel
 router.patch('/deliveries/:id/location', authenticateJWT, authorizeRoles(Role.DELIVERER, Role.ADMIN), updateDelivererLocation)
 
-// Lot 3 — Historique d'audit d'une commande (ADMIN uniquement)
-router.get('/:id/audit-logs', authenticateJWT, authorizeRoles(Role.ADMIN), getOrderAuditLogs)
+// Lot 3 — Historique d'audit d'une commande (ADMIN et CLIENT)
+router.get('/:id/audit-logs', authenticateJWT, authorizeRoles(Role.ADMIN, Role.CLIENT), getOrderAuditLogs)
 
 export default router
