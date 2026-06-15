@@ -70,6 +70,7 @@ export interface Order {
   }
   items: OrderItemDetail[]
   delivery?: Delivery | null
+  reviews?: { id: string; rating: number; comment: string | null; createdAt: string }[]
 }
 
 export interface CreateOrderPayload {
@@ -189,5 +190,12 @@ export interface AuditLog {
 
 export const getOrderAuditLogs = async (orderId: string): Promise<AuditLog[]> => {
   const res = await axiosClient.get<AuditLog[]>(`/orders/${orderId}/audit-logs`)
+  return res.data
+}
+
+export const downloadOrderInvoice = async (orderId: string): Promise<Blob> => {
+  const res = await axiosClient.get(`/orders/${orderId}/invoice`, {
+    responseType: 'blob'
+  })
   return res.data
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
-import { Clock, CheckCircle, XCircle, ChefHat, Package, Truck, AlertCircle, MapPin, MessageSquare, Filter, Search, ChevronDown, RotateCcw, HelpCircle, Maximize2, Minimize2, AlertTriangle, Heart } from 'lucide-react'
-import { getMyOrders, confirmDelivery, updateOrderStatus } from '../api/orders.api'
+import { Clock, CheckCircle, XCircle, ChefHat, Package, Truck, AlertCircle, MapPin, MessageSquare, Filter, Search, ChevronDown, RotateCcw, HelpCircle, Maximize2, Minimize2, AlertTriangle, Heart, Star, FileText } from 'lucide-react'
+import { getMyOrders, confirmDelivery, updateOrderStatus, downloadOrderInvoice } from '../api/orders.api'
+import { submitReview } from '../api/reviews.api'
 import type { Order, OrderStatus } from '../api/orders.api'
 import { ChatWindow } from '../components/ChatWindow'
 import { useSocket } from '../contexts/SocketContext'
@@ -107,6 +108,54 @@ const OrdersPage = () => {
   const [reportType, setReportType] = useState('MISSING_ITEM')
   const [reportComment, setReportComment] = useState('')
   const [isSendingReport, setIsSendingReport] = useState(false)
+
+  // Facturation PDF
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null)
+
+  const handleDownloadInvoice = async (orderId: string) => {
+    setDownloadingInvoiceId(orderId)
+    try {
+      const blob = await downloadOrderInvoice(orderId)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `facture_${orderId.slice(-6).toUpperCase()}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.parentNode?.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      addToast('Facture téléchargée avec succès !', 'success')
+    } catch {
+      addToast('Erreur lors du téléchargement de la facture.', 'error')
+    } finally {
+      setDownloadingInvoiceId(null)
+    }
+  }
+
+  // Notation / Avis (Reviews)
+  const [reviewOrder, setReviewOrder] = useState<Order | null>(null)
+  const [rating, setRating] = useState<number>(5)
+  const [hoverRating, setHoverRating] = useState<number | null>(null)
+  const [reviewComment, setReviewComment] = useState<string>('')
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false)
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!reviewOrder) return
+    setIsSubmittingReview(true)
+    try {
+      await submitReview(reviewOrder.id, rating, reviewComment)
+      addToast('Merci pour votre avis !', 'success')
+      setReviewOrder(null)
+      setReviewComment('')
+      setRating(5)
+      fetchOrders()
+    } catch (err: any) {
+      addToast(err.response?.data?.error || "Erreur lors de la soumission de l'avis.", 'error')
+    } finally {
+      setIsSubmittingReview(false)
+    }
+  }
 
   // Statistiques de consommation client
   const totalOrdersCount = orders.length
@@ -590,6 +639,36 @@ Commentaire : ${reportComment || 'Aucun détail fourni'}`
                     />
                   )}
 
+                  {order.status === 'DELIVERED' && (
+                    <>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#10b981' }}
+                        onClick={() => handleDownloadInvoice(order.id)}
+                        disabled={downloadingInvoiceId === order.id}
+                      >
+                        <FileText size={13} /> {downloadingInvoiceId === order.id ? 'Téléchargement...' : 'Facture PDF'}
+                      </button>
+
+                      {order.reviews && order.reviews.length > 0 ? (
+                        <span
+                          className="status-badge status-delivered"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', fontSize: '11px', fontWeight: '700' }}
+                        >
+                          <Star size={11} fill="currentColor" /> {order.reviews[0].rating} / 5
+                        </span>
+                      ) : (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#f59e0b' }}
+                          onClick={() => { setReviewOrder(order); setRating(5); setHoverRating(null); setReviewComment('') }}
+                        >
+                          <Star size={13} /> Noter
+                        </button>
+                      )}
+                    </>
+                  )}
+
                   {['DELIVERED', 'CANCELLED'].includes(order.status) && (
                     <button
                       className="btn btn-secondary btn-sm"
@@ -860,6 +939,80 @@ Commentaire : ${reportComment || 'Aucun détail fourni'}`
                 {isSendingReport ? <span className="btn-spinner" /> : 'Envoyer le signalement'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Laisser un Avis / Noter */}
+      {reviewOrder && (
+        <div className="modal-overlay" onClick={() => !isSubmittingReview && setReviewOrder(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <form onSubmit={handleSubmitReview}>
+              <div className="modal-header">
+                <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-primary)' }}>
+                  <Star size={18} fill="var(--color-primary)" /> Évaluer ma commande
+                </h3>
+                <button type="button" onClick={() => setReviewOrder(null)} disabled={isSubmittingReview} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: 'var(--color-text-dim)', lineHeight: 1 }}>&times;</button>
+              </div>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <p style={{ margin: 0, fontSize: '13.5px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                  Comment s'est passée votre commande #${reviewOrder.id.slice(-6).toUpperCase()} ?<br />
+                  Attribuez une note et laissez-nous un avis !
+                </p>
+
+                {/* Étoiles interactives */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', padding: '10px 0' }}>
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const isFilled = hoverRating !== null ? star <= hoverRating : star <= rating;
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          color: isFilled ? '#f59e0b' : 'var(--color-text-dim)',
+                          transition: 'transform 0.15s, color 0.15s',
+                        }}
+                        onClick={() => setRating(star)}
+                        onMouseEnter={() => setHoverRating(star)}
+                        onMouseLeave={() => setHoverRating(null)}
+                        onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.85)' }}
+                        onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1.15)' }}
+                      >
+                        <Star size={32} fill={isFilled ? 'currentColor' : 'none'} />
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontSize: '12px', marginBottom: '6px' }}>Votre commentaire (optionnel)</label>
+                  <textarea
+                    className="form-input"
+                    rows={4}
+                    placeholder="Qu'avez-vous pensé de vos plats et de la livraison ?"
+                    value={reviewComment}
+                    onChange={e => setReviewComment(e.target.value)}
+                    disabled={isSubmittingReview}
+                    style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: '13.5px' }}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setReviewOrder(null)} disabled={isSubmittingReview}>Annuler</button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ flex: 2 }}
+                  disabled={isSubmittingReview}
+                >
+                  {isSubmittingReview ? <span className="btn-spinner" /> : 'Soumettre mon avis'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

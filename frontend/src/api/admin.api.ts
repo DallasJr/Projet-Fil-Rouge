@@ -119,3 +119,49 @@ export const cancelDelivery = async (deliveryId: string): Promise<Delivery> => {
   const res = await axiosClient.patch<Delivery>(`/orders/deliveries/${deliveryId}/cancel`)
   return res.data
 }
+
+export interface DashboardStats {
+  revenue: {
+    total: number
+    last7Days: number
+    last30Days: number
+    daily: { date: string; amount: number }[]
+  }
+  orders: {
+    total: number
+    byStatus: Record<string, number>
+  }
+  users: {
+    total: number
+    byRole: Record<string, number>
+    activeDeliverers: number
+  }
+  reviews: {
+    count: number
+    avgRating: number
+    recent: {
+      id: string
+      orderId: string
+      customerId: string
+      rating: number
+      comment: string | null
+      createdAt: string
+      customer?: {
+        id: string
+        name: string
+      }
+    }[]
+  }
+  topItems: {
+    id: string
+    name: string
+    quantity: number
+    revenue: number
+    imageUrl?: string | null
+  }[]
+}
+
+export const getDashboardStats = async (): Promise<DashboardStats> => {
+  const res = await axiosClient.get<DashboardStats>('/admin/dashboard/stats')
+  return res.data
+}

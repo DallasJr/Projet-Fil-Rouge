@@ -6,6 +6,7 @@ import { notifyOrderStatusUpdate, notifyDeliveryAssigned, notifyOrderCreated, no
 import { createAndSendNotification } from './notification.controller'
 import { geocodeAddress, haversine, calculateETA } from '../utils/haversine'
 import { createAuditLog } from '../utils/auditLog'
+import PDFDocument from 'pdfkit'
 
 // Cycle de statut autorisé — l'admin NE PEUT PAS sauter des étapes
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -159,7 +160,8 @@ export const getMyOrders = async (req: AuthenticatedRequest, res: Response) => {
           include: {
             deliverer: { select: { id: true, name: true, phone: true } }
           }
-        }
+        },
+        reviews: true
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -196,7 +198,8 @@ export const getAllOrders = async (req: AuthenticatedRequest, res: Response) => 
           include: {
             deliverer: { select: { id: true, name: true, email: true, phone: true } }
           }
-        }
+        },
+        reviews: true
       },
       orderBy: { createdAt: 'desc' }
     })
@@ -1030,10 +1033,160 @@ export const rejectAssignment = async (req: AuthenticatedRequest, res: Response)
 
     // Émettre les événements temps réel pour libérer la livraison
     notifyOrderStatusUpdate(delivery.orderId, OrderStatus.READY)
-
     return res.json(updatedDelivery)
   } catch (error: any) {
     console.error('Erreur rejectAssignment:', error)
     return res.status(500).json({ error: 'Impossible de refuser l\'assignation.' })
+  }
+}
+
+export const downloadInvoice = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non autorisé.' })
+    }
+
+    const { id } = req.params
+    const orderId = String(id)
+
+    // Récupérer la commande avec les détails
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: { select: { id: true, name: true, email: true, phone: true } },
+        items: { include: { item: true } },
+        delivery: { include: { deliverer: { select: { name: true } } } },
+        restaurant: true
+      }
+    })
+
+    if (!order) {
+      return res.status(404).json({ error: 'Commande non trouvée.' })
+    }
+
+    // Vérifier l'autorisation : seul le client propriétaire de la commande ou un admin peut voir la facture
+    if (order.customerId !== req.user.id && req.user.role !== Role.ADMIN) {
+      return res.status(403).json({ error: 'Accès interdit à cette facture.' })
+    }
+
+    // Créer un document PDF
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+
+    // Configurer le flux de réponse HTTP
+    const filename = `facture_${order.id.slice(-6).toUpperCase()}.pdf`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+
+    // Renvoyer le PDF généré directement au client
+    doc.pipe(res)
+
+    // En-tête : Restaurant & Titre Facture
+    doc.fillColor('#111827')
+       .fontSize(20)
+       .font('Helvetica-Bold')
+       .text(order.restaurant?.name || 'RestauApp', 50, 50)
+       .font('Helvetica')
+       .fontSize(10)
+       .fillColor('#6b7280')
+       .text(order.restaurant?.address || '1 Rue de la Gastronomie, Paris', 50, 75)
+       .text(`Tel: ${order.restaurant?.phone || '+33 1 23 45 67 89'}`, 50, 90)
+
+    doc.fillColor('#4f46e5')
+       .fontSize(24)
+       .font('Helvetica-Bold')
+       .text('FACTURE', 400, 50, { align: 'right' })
+       .font('Helvetica')
+       .fontSize(10)
+       .fillColor('#111827')
+       .text(`Facture N° : INV-${order.id.slice(-6).toUpperCase()}`, 400, 75, { align: 'right' })
+       .text(`Date : ${new Date(order.createdAt).toLocaleDateString('fr-FR')}`, 400, 90, { align: 'right' })
+
+    // Ligne horizontale de séparation
+    doc.moveTo(50, 120).lineTo(550, 120).strokeColor('#e5e7eb').lineWidth(1).stroke()
+
+    // Informations Client / Livraison
+    doc.fontSize(12).fillColor('#111827').font('Helvetica-Bold').text('Facturé à :', 50, 140)
+    doc.fontSize(10).fillColor('#374151').font('Helvetica')
+       .text(order.customer?.name || 'Client', 50, 160)
+       .text(order.customer?.email || '', 50, 175)
+    if (order.customer?.phone) {
+      doc.text(`Tél: ${order.customer.phone}`, 50, 190)
+    }
+
+    doc.fontSize(12).fillColor('#111827').font('Helvetica-Bold').text('Mode de livraison :', 350, 140)
+    doc.fontSize(10).fillColor('#374151').font('Helvetica')
+    if (order.delivery) {
+      doc.text('Livraison à domicile', 350, 160)
+         .text(`Adresse : ${order.delivery.deliveryAddress}`, 350, 175, { width: 200 })
+         .text(`Paiement : ${order.delivery.paymentMethod === 'CREDIT_CARD' ? 'Carte Bancaire' : order.delivery.paymentMethod === 'PAYPAL' ? 'PayPal' : 'Espèces'}`, 350, 205)
+    } else {
+      doc.text('Sur place / Emporter', 350, 160)
+    }
+
+    // Ligne horizontale de séparation
+    doc.moveTo(50, 240).lineTo(550, 240).strokeColor('#e5e7eb').stroke()
+
+    // Tableau des articles
+    let y = 260
+    doc.fontSize(10).fillColor('#4b5563').font('Helvetica-Bold')
+       .text('Désignation', 50, y)
+       .text('Qté', 320, y, { align: 'right', width: 40 })
+       .text('Prix Unitaire', 380, y, { align: 'right', width: 80 })
+       .text('Montant', 470, y, { align: 'right', width: 80 })
+
+    doc.moveTo(50, y + 15).lineTo(550, y + 15).strokeColor('#e5e7eb').stroke()
+    y += 25
+
+    doc.fillColor('#374151').font('Helvetica')
+    order.items.forEach(item => {
+      const name = item.item?.name || 'Article inconnu'
+      const qty = item.quantity
+      const price = item.unitPrice
+      const total = price * qty
+
+      doc.text(name, 50, y, { width: 250 })
+         .text(qty.toString(), 320, y, { align: 'right', width: 40 })
+         .text(`${price.toFixed(2)} €`, 380, y, { align: 'right', width: 80 })
+         .text(`${total.toFixed(2)} €`, 470, y, { align: 'right', width: 80 })
+
+      y += 20
+    })
+
+    doc.moveTo(50, y + 5).lineTo(550, y + 5).strokeColor('#e5e7eb').stroke()
+    y += 15
+
+    // Totaux
+    const subtotal = order.totalAmount
+    const deliveryFee = order.delivery ? order.delivery.deliveryFee : 0
+    const finalTotal = subtotal + deliveryFee
+
+    doc.fontSize(10)
+       .text('Sous-total :', 350, y, { align: 'right', width: 120 })
+       .text(`${subtotal.toFixed(2)} €`, 480, y, { align: 'right', width: 70 })
+
+    if (order.delivery) {
+      y += 20
+      doc.text('Frais de livraison :', 350, y, { align: 'right', width: 120 })
+         .text(`${deliveryFee.toFixed(2)} €`, 480, y, { align: 'right', width: 70 })
+    }
+
+    y += 25
+    doc.fontSize(12).fillColor('#4f46e5').font('Helvetica-Bold')
+       .text('TOTAL :', 350, y, { align: 'right', width: 120 })
+       .text(`${finalTotal.toFixed(2)} €`, 480, y, { align: 'right', width: 70 })
+
+    // Footer
+    doc.fillColor('#9ca3af')
+       .fontSize(10)
+       .text('Merci de votre confiance et bon appétit !', 50, 720, { align: 'center' })
+       .text(`${order.restaurant?.name || 'RestauApp'} — Généré automatiquement le ${new Date().toLocaleDateString('fr-FR')}`, 50, 735, { align: 'center' })
+
+    // Finaliser le PDF
+    doc.end()
+  } catch (error: any) {
+    console.error('Erreur downloadInvoice:', error)
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'Une erreur est survenue lors de la génération de la facture.' })
+    }
   }
 }

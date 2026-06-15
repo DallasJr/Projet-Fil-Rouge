@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import type { ReactElement } from 'react'
-import { Clock, ChefHat, Package, CheckCircle, XCircle, Truck, AlertCircle, RefreshCw, MapPin, X, ClipboardList, Filter, Search, ChevronDown, Heart } from 'lucide-react'
+import { Clock, ChefHat, Package, CheckCircle, XCircle, Truck, AlertCircle, RefreshCw, MapPin, X, ClipboardList, Filter, Search, ChevronDown, Heart, Star } from 'lucide-react'
 import { getAllOrders, updateOrderStatus, getOrderAuditLogs } from '../api/orders.api'
 import type { Order, OrderStatus, AuditLog } from '../api/orders.api'
-import { getAllUsers, assignDeliverer } from '../api/admin.api'
-import type { UserDetail } from '../api/admin.api'
+import { getAllUsers, assignDeliverer, getDashboardStats } from '../api/admin.api'
+import type { UserDetail, DashboardStats } from '../api/admin.api'
 import { useSocket } from '../contexts/SocketContext'
 import { DeliveryMap } from '../components/DeliveryMap'
 
@@ -124,6 +124,11 @@ const DashboardPage = () => {
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const { socket } = useSocket()
   const [selectedItemDetail, setSelectedItemDetail] = useState<any | null>(null)
+  const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false)
+
+  // Statistiques Dashboard
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
+  const [isLoadingStats, setIsLoadingStats] = useState<boolean>(true)
 
   // ── Favorites state & toggle ──
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -159,13 +164,19 @@ const DashboardPage = () => {
 
   const fetchOrders = async () => {
     setIsLoading(true)
+    setIsLoadingStats(true)
     try {
-      const data = await getAllOrders()
-      setOrders(data)
-    } catch {
-      setError('Impossible de charger les commandes.')
+      const [ordersData, statsData] = await Promise.all([
+        getAllOrders(),
+        getDashboardStats()
+      ])
+      setOrders(ordersData)
+      setDashboardStats(statsData)
+    } catch (err) {
+      setError('Impossible de charger les données du dashboard.')
     } finally {
       setIsLoading(false)
+      setIsLoadingStats(false)
     }
   }
 
@@ -276,20 +287,20 @@ const DashboardPage = () => {
     return matchesStatus && matchesSearch
   })
 
-  const stats = {
-    total: orders.length,
-    pending: orders.filter((o) => o.status === 'PENDING').length,
-    preparing: orders.filter((o) => ['ACCEPTED', 'PREPARING'].includes(o.status)).length,
-    ready: orders.filter((o) => o.status === 'READY').length,
-    revenue: orders.filter((o) => o.status !== 'CANCELLED').reduce((s, o) => s + o.totalAmount, 0),
-  }
+  const pendingCount = dashboardStats ? (dashboardStats.orders.byStatus['PENDING'] || 0) : orders.filter((o) => o.status === 'PENDING').length;
+  const preparingCount = dashboardStats 
+    ? ((dashboardStats.orders.byStatus['ACCEPTED'] || 0) + (dashboardStats.orders.byStatus['PREPARING'] || 0)) 
+    : orders.filter((o) => ['ACCEPTED', 'PREPARING'].includes(o.status)).length;
+  const readyCount = dashboardStats ? (dashboardStats.orders.byStatus['READY'] || 0) : orders.filter((o) => o.status === 'READY').length;
+  const totalCount = dashboardStats ? dashboardStats.orders.total : orders.length;
+  const revenueTotal = dashboardStats ? dashboardStats.revenue.total : orders.filter((o) => o.status !== 'CANCELLED').reduce((s, o) => s + o.totalAmount, 0);
 
   const statCards = [
-    { value: stats.total, label: 'Total commandes', icon: '📋', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)', glow: 'rgba(99,102,241,0.25)' },
-    { value: stats.pending, label: 'En attente', icon: '⏳', gradient: 'linear-gradient(135deg, #f59e0b, #f97316)', glow: 'rgba(245,158,11,0.25)' },
-    { value: stats.preparing, label: 'En préparation', icon: '👨‍🍳', gradient: 'linear-gradient(135deg, #0ea5e9, #06b6d4)', glow: 'rgba(14,165,233,0.25)' },
-    { value: stats.ready, label: 'Prêtes', icon: '✅', gradient: 'linear-gradient(135deg, #10b981, #059669)', glow: 'rgba(16,185,129,0.25)' },
-    { value: `${stats.revenue.toFixed(2)} €`, label: "Chiffre d'affaires", icon: '💶', gradient: 'linear-gradient(135deg, #f97316, #ef4444)', glow: 'rgba(249,115,22,0.25)' },
+    { value: totalCount, label: 'Total commandes', icon: '📋', gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6)', glow: 'rgba(99,102,241,0.25)' },
+    { value: pendingCount, label: 'En attente', icon: '⏳', gradient: 'linear-gradient(135deg, #f59e0b, #f97316)', glow: 'rgba(245,158,11,0.25)' },
+    { value: preparingCount, label: 'En préparation', icon: '👨‍🍳', gradient: 'linear-gradient(135deg, #0ea5e9, #06b6d4)', glow: 'rgba(14,165,233,0.25)' },
+    { value: readyCount, label: 'Prêtes', icon: '✅', gradient: 'linear-gradient(135deg, #10b981, #059669)', glow: 'rgba(16,185,129,0.25)' },
+    { value: `${revenueTotal.toFixed(2)} €`, label: "Chiffre d'affaires", icon: '💶', gradient: 'linear-gradient(135deg, #f97316, #ef4444)', glow: 'rgba(249,115,22,0.25)' },
   ]
 
   return (
@@ -399,6 +410,278 @@ const DashboardPage = () => {
       </div>
 
       {/* Removed old separate filter panel since it is now merged inside page-header */}
+
+      {/* Section Performances & Ventes */}
+      {dashboardStats && (
+        <div className="perf-ventes-section" style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+          gap: '20px',
+          marginBottom: '28px',
+          transition: 'opacity 0.2s',
+          opacity: isLoadingStats ? 0.75 : 1
+        }}>
+          {/* Bloc 1: Évolution du CA & Avis */}
+          <div style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+          }}>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text)' }}>
+              📈 Chiffre d'affaires (7 derniers jours)
+            </h3>
+            
+            {/* Graphique SVG */}
+            <div style={{ position: 'relative', height: '180px', width: '100%', marginTop: '10px' }}>
+              {(() => {
+                const dailyData = dashboardStats.revenue.daily || [];
+                if (dailyData.length === 0) return <div style={{ textAlign: 'center', color: 'var(--color-text-dim)', paddingTop: '60px' }}>Aucune donnée disponible</div>;
+                
+                const width = 500;
+                const height = 140;
+                const paddingX = 40;
+                const paddingY = 20;
+                const chartWidth = width - paddingX * 2;
+                const chartHeight = height - paddingY * 2;
+                
+                const maxVal = Math.max(...dailyData.map(d => d.amount), 50);
+                
+                // Build points
+                const points = dailyData.map((d, index) => {
+                  const x = paddingX + (index * (chartWidth / (dailyData.length - 1 || 1)));
+                  const y = paddingY + chartHeight - (d.amount / maxVal) * chartHeight;
+                  return { x, y, val: d.amount, date: d.date };
+                });
+                
+                // Path string
+                const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                const areaPath = points.length > 0
+                  ? `${linePath} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`
+                  : '';
+                  
+                return (
+                  <div style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                    <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: '140px', overflow: 'visible' }}>
+                      <defs>
+                        <linearGradient id="area-grad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.45" />
+                          <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.00" />
+                        </linearGradient>
+                      </defs>
+                      
+                      {/* Grid lines */}
+                      {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                        const y = paddingY + chartHeight * ratio;
+                        const val = (maxVal * (1 - ratio)).toFixed(0);
+                        return (
+                          <g key={idx}>
+                            <line x1={paddingX} y1={y} x2={width - paddingX} y2={y} stroke="var(--color-border)" strokeDasharray="4 4" strokeWidth="1" />
+                            <text x={paddingX - 8} y={y + 4} fill="var(--color-text-dim)" fontSize="9" textAnchor="end" fontWeight="600">{val} €</text>
+                          </g>
+                        );
+                      })}
+                      
+                      {/* Area Fill */}
+                      {areaPath && <path d={areaPath} fill="url(#area-grad)" />}
+                      
+                      {/* Line Path */}
+                      {linePath && <path d={linePath} fill="none" stroke="var(--color-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+                      
+                      {/* Interactive Dots & Labels */}
+                      {points.map((p, idx) => (
+                        <g key={idx} className="chart-dot-group" style={{ cursor: 'pointer' }}>
+                          <circle cx={p.x} cy={p.y} r="5" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="3" />
+                          {/* Tooltip visible on hover or display always on top */}
+                          <g className="chart-tooltip" style={{ opacity: 0.85 }}>
+                            <rect x={p.x - 30} y={p.y - 28} width="60" height="18" rx="4" fill="var(--color-surface-3)" stroke="var(--color-border)" strokeWidth="1" />
+                            <text x={p.x} y={p.y - 16} fill="var(--color-text)" fontSize="8" textAnchor="middle" fontWeight="700">{p.val.toFixed(1)}€</text>
+                          </g>
+                        </g>
+                      ))}
+                      
+                      {/* X Axis labels */}
+                      {points.map((p, idx) => (
+                        <text key={idx} x={p.x} y={height - 2} fill="var(--color-text-muted)" fontSize="8.5" textAnchor="middle" fontWeight="600">
+                          {p.date.split(' ')[0]} {/* Day only */}
+                        </text>
+                      ))}
+                    </svg>
+                    
+                    {/* CSS rules for hover tooltip effect */}
+                    <style>{`
+                      .chart-dot-group:hover circle {
+                        r: 7;
+                        fill: var(--color-primary);
+                        stroke: var(--color-surface);
+                      }
+                      .chart-tooltip {
+                        opacity: 0 !important;
+                        transition: opacity 0.15s ease-in-out;
+                        pointer-events: none;
+                      }
+                      .chart-dot-group:hover .chart-tooltip {
+                        opacity: 1 !important;
+                      }
+                    `}</style>
+                  </div>
+                );
+              })()}
+            </div>
+            
+            {/* Statistiques avis complémentaires */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px',
+              background: 'var(--color-surface-2)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              marginTop: '5px'
+            }}>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                  Avis &amp; Satisfaction client
+                </span>
+                <span style={{ fontSize: '13.5px', color: 'var(--color-text)' }}>
+                  Basé sur <strong>{dashboardStats.reviews.count}</strong> avis reçus
+                </span>
+                <button
+                  onClick={() => setIsReviewsModalOpen(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: 'var(--color-primary)',
+                    fontWeight: '700',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    marginTop: '4px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  💬 Voir les avis ({dashboardStats.reviews.recent?.length || 0})
+                </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '28px', fontWeight: '900', color: '#f59e0b' }}>
+                  {dashboardStats.reviews.avgRating}
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', gap: '2px', color: '#f59e0b' }}>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const fillVal = Math.max(0, Math.min(1, dashboardStats.reviews.avgRating - (star - 1)));
+                      return (
+                        <svg key={star} width="14" height="14" viewBox="0 0 24 24" fill={fillVal >= 1 ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                          <defs>
+                            <linearGradient id={`grad-star-${star}`}>
+                              <stop offset={`${fillVal * 100}%`} stopColor="currentColor" />
+                              <stop offset={`${fillVal * 100}%`} stopColor="transparent" stopOpacity="1" />
+                            </linearGradient>
+                          </defs>
+                          <path
+                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                            fill={fillVal > 0 && fillVal < 1 ? `url(#grad-star-${star})` : undefined}
+                          />
+                        </svg>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', fontWeight: '600' }}>Note moyenne</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Bloc 2: Top 5 des plats les plus vendus */}
+          <div style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+          }}>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text)' }}>
+              🔥 Top 5 des plats les plus vendus
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+              {(dashboardStats.topItems || []).length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--color-text-dim)', padding: '40px 0' }}>
+                  Aucune vente enregistrée pour le moment
+                </div>
+              ) : (
+                dashboardStats.topItems.map((item, idx) => {
+                  const maxQty = Math.max(...(dashboardStats.topItems || []).map(i => i.quantity), 1);
+                  const progressPct = Math.round((item.quantity / maxQty) * 100);
+                  
+                  return (
+                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{
+                        fontSize: '13px',
+                        fontWeight: '900',
+                        color: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#b45309' : 'var(--color-text-muted)',
+                        width: '20px',
+                        textAlign: 'center'
+                      }}>
+                        {idx + 1}
+                      </span>
+                      
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.name} style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', border: '1px solid var(--color-border)' }} />
+                      ) : (
+                        <div style={{ width: '36px', height: '36px', background: 'var(--color-surface-2)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', border: '1px solid var(--color-border)' }}>
+                          🍽️
+                        </div>
+                      )}
+                      
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <span style={{ fontWeight: '700', fontSize: '13px', color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.name}
+                          </span>
+                          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--color-primary)' }}>
+                            {item.quantity} vendus
+                          </span>
+                        </div>
+                        
+                        {/* Barre de progression */}
+                        <div style={{ height: '6px', background: 'var(--color-surface-2)', borderRadius: '3px', width: '100%', overflow: 'hidden', display: 'flex' }}>
+                          <div style={{
+                            width: `${progressPct}%`,
+                            background: idx === 0
+                              ? 'linear-gradient(90deg, #f59e0b, #f97316)'
+                              : idx === 1
+                              ? 'linear-gradient(90deg, #6366f1, #8b5cf6)'
+                              : 'linear-gradient(90deg, #10b981, #059669)',
+                            borderRadius: '3px',
+                            transition: 'width 0.5s ease-out'
+                          }} />
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px', color: 'var(--color-text-dim)', marginTop: '2px', fontWeight: '600' }}>
+                          Revenu : {item.revenue.toFixed(2)} €
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="loading-screen"><div className="loading-spinner"></div></div>
@@ -851,6 +1134,85 @@ const DashboardPage = () => {
            </div>
          )
        })()}
+
+      {/* Modal Liste des Avis */}
+      {isReviewsModalOpen && dashboardStats && (
+        <div className="modal-overlay" onClick={() => setIsReviewsModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: '0', overflow: 'hidden' }}>
+            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-border)' }}>
+              <div>
+                <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
+                  💬 Avis &amp; Commentaires des clients
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                  Note moyenne : <strong>{dashboardStats.reviews.avgRating} / 5</strong> ({dashboardStats.reviews.count} avis)
+                </p>
+              </div>
+              <button
+                onClick={() => setIsReviewsModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: 'var(--color-text-dim)', lineHeight: 1 }}
+              >
+                &times;
+              </button>
+            </div>
+            
+            <div className="modal-body" style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(!dashboardStats.reviews.recent || dashboardStats.reviews.recent.length === 0) ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-muted)' }}>
+                  Aucun avis ni commentaire n'a été publié.
+                </div>
+              ) : (
+                dashboardStats.reviews.recent.map((rev) => (
+                  <div key={rev.id} style={{
+                    padding: '14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface-2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: '700', fontSize: '13.5px', color: 'var(--color-text)' }}>
+                        👤 {rev.customer?.name || 'Client anonyme'}
+                      </span>
+                      <div style={{ display: 'flex', gap: '2px', color: '#f59e0b' }}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            size={12}
+                            fill={star <= rev.rating ? 'currentColor' : 'none'}
+                            stroke="currentColor"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <p style={{ margin: '4px 0 6px', fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: rev.comment ? 'normal' : 'italic', lineHeight: 1.5 }}>
+                      {rev.comment || 'Aucun commentaire textuel laissé.'}
+                    </p>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                      <span>Commande #{rev.orderId.slice(-6).toUpperCase()}</span>
+                      <span>
+                        {new Date(rev.createdAt).toLocaleDateString('fr-FR', {
+                          day: '2-digit', month: 'short', year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--color-border)', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setIsReviewsModalOpen(false)} style={{ minWidth: '100px' }}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
