@@ -55,10 +55,11 @@ model User {
   orders           Order[]           @relation("ClientOrders")
   deliveries       Delivery[]        @relation("DelivererDeliveries")
   addresses        Address[]
-  reviews          Review[]
-  notifications    Notification[]
-  messages         Message[]
-  auditLogs        AuditLog[]
+  reviews             Review[]
+  notifications       Notification[]
+  messages            Message[]
+  auditLogs           AuditLog[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Address {
@@ -215,4 +216,14 @@ model AuditLog {
   newValue  String?  // Ex: "ACCEPTED"
   note      String?
   createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  used       Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }

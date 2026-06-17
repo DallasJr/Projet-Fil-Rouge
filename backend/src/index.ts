@@ -1,4 +1,5 @@
 import express from 'express'
+import helmet from 'helmet'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
@@ -14,6 +15,8 @@ import orderRoutes from './routes/order.routes'
 import adminRoutes from './routes/admin.routes'
 import notificationRoutes from './routes/notification.routes'
 import reviewRoutes from './routes/review.routes'
+import uploadRoutes from './routes/upload.routes'
+import { apiLimiter } from './middlewares/security.middleware'
 
 // Utilisation de pg native pour l'adapter Prisma
 const pool = new pg.Pool({
@@ -27,8 +30,10 @@ const server = createServer(app)
 const PORT = process.env['PORT'] || 3000
 
 // Middlewares globaux
+app.use(helmet())
 app.use(cors()) // Permet aux applications React et React Native de communiquer avec l'API
 app.use(express.json())
+app.use(apiLimiter)
 
 // Définir les routes de l'API
 app.use('/api/auth', authRoutes)
@@ -37,6 +42,7 @@ app.use('/api/orders', orderRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/reviews', reviewRoutes)
+app.use('/api/uploads', uploadRoutes)
 
 app.get('/health', async (req, res) => {
   try {
@@ -55,4 +61,3 @@ server.listen(PORT, () => {
 })
 
 export { prisma }
-// reload ts-node
