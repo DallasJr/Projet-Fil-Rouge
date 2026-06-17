@@ -280,7 +280,11 @@ const Navbar = () => {
             </div>
 
             <Link to="/profile" id="nav-profile" className="navbar-user-info">
-              <User size={15} />
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="Avatar" style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--color-border)' }} />
+              ) : (
+                <User size={15} />
+              )}
               <span>{user?.name}</span>
               {isAdmin && <span className="badge-admin">Admin</span>}
               {isDeliverer && <span className="badge-deliverer">Livreur</span>}

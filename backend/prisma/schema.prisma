@@ -44,6 +44,7 @@ model User {
   name             String
   password         String
   phone            String?
+  avatarUrl        String?
   role             Role              @default(CLIENT)
   isAvailable      Boolean           @default(true)
   isSuspended      Boolean           @default(false)
@@ -109,6 +110,9 @@ model Item {
   price        Float
   imageUrl     String?
   isAvailable  Boolean     @default(true)
+  isVegetarian Boolean     @default(false)
+  isGlutenFree Boolean     @default(false)
+  isSpicy      Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   

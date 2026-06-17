@@ -1,8 +1,8 @@
 import { Router } from 'express'
-import { register, login, getProfile, updateAvailability, forgotPassword, resetPassword } from '../controllers/auth.controller'
+import { register, login, getProfile, updateAvailability, forgotPassword, resetPassword, updateProfile } from '../controllers/auth.controller'
 import { authenticateJWT } from '../middlewares/auth.middleware'
 import { validateBody } from '../middlewares/validation.middleware'
-import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/validation.schemas'
+import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema, updateProfileSchema } from '../schemas/validation.schemas'
 import { authLimiter } from '../middlewares/security.middleware'
 
 const router = Router()
@@ -21,6 +21,9 @@ router.post('/reset-password', authLimiter, validateBody(resetPasswordSchema), r
 
 // Route Profil protégé : GET /api/auth/me (nécessite le token JWT)
 router.get('/me', authenticateJWT, getProfile)
+
+// Route Mise à jour profil : PATCH /api/auth/profile
+router.patch('/profile', authenticateJWT, validateBody(updateProfileSchema), updateProfile)
 
 // Route Disponibilité livreur : PATCH /api/auth/availability
 router.patch('/availability', authenticateJWT, updateAvailability)

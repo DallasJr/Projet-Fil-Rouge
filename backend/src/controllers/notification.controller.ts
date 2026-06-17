@@ -2,6 +2,7 @@ import { Response } from 'express'
 import { AuthenticatedRequest } from '../middlewares/auth.middleware'
 import { prisma } from '../index'
 import { sendSocketNotification } from '../socket'
+import { sendNotificationEmail } from '../services/email.service'
 
 // Fonction utilitaire pour créer et envoyer une notification
 export const createAndSendNotification = async (userId: string, message: string, orderId?: string) => {
@@ -16,11 +17,24 @@ export const createAndSendNotification = async (userId: string, message: string,
     
     // Envoyer la notification via socket temps réel
     sendSocketNotification(userId, notification)
+    
+    // Envoyer la notification par email
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true }
+    })
+    if (user && user.email) {
+      sendNotificationEmail(user.email, user.name || 'Client', message).catch(err => {
+        console.error("Erreur lors de l'envoi de l'email de notification:", err)
+      })
+    }
+
     return notification
   } catch (error) {
     console.error('Erreur createAndSendNotification:', error)
   }
 }
+
 
 // Récupérer les notifications de l'utilisateur connecté
 export const getMyNotifications = async (req: AuthenticatedRequest, res: Response) => {

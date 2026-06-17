@@ -5,6 +5,7 @@ import { prisma } from '../index'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { Role } from '@prisma/client'
+import { sendPasswordResetEmail } from '../services/email.service'
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'super-secret-key-change-this-in-production-12345!'
 const RESET_TOKEN_EXPIRATION_MINUTES = 60
@@ -65,6 +66,7 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatarUrl: user.avatarUrl,
         isAvailable: user.isAvailable,
       },
     })
@@ -113,6 +115,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatarUrl: user.avatarUrl,
         isAvailable: user.isAvailable,
       },
     })
@@ -146,6 +149,11 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
         tokenHash,
         expiresAt,
       },
+    })
+
+    // Envoyer le mail de réinitialisation
+    sendPasswordResetEmail(user.email, token, user.name).catch((err) => {
+      console.error("Erreur d'envoi d'email de réinitialisation de mot de passe:", err)
     })
 
     if (process.env.NODE_ENV !== 'production') {
@@ -221,6 +229,7 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
         name: true,
         role: true,
         phone: true,
+        avatarUrl: true,
         isAvailable: true,
         createdAt: true,
       },
@@ -258,6 +267,7 @@ export const updateAvailability = async (req: AuthenticatedRequest, res: Respons
         name: true,
         role: true,
         phone: true,
+        avatarUrl: true,
         isAvailable: true
       }
     })
@@ -266,5 +276,40 @@ export const updateAvailability = async (req: AuthenticatedRequest, res: Respons
   } catch (error) {
     console.error('Erreur updateAvailability:', error)
     return res.status(500).json({ error: 'Une erreur interne est survenue.' })
+  }
+}
+
+// Mettre à jour le profil (nom, téléphone, avatar)
+export const updateProfile = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non autorisé.' })
+    }
+
+    const { name, phone, avatarUrl } = req.body
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        name: name !== undefined ? String(name) : undefined,
+        phone: phone !== undefined ? (phone === '' ? null : String(phone)) : undefined,
+        avatarUrl: avatarUrl !== undefined ? (avatarUrl === '' ? null : String(avatarUrl)) : undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        phone: true,
+        avatarUrl: true,
+        isAvailable: true,
+        createdAt: true,
+      },
+    })
+
+    return res.json(updatedUser)
+  } catch (error: any) {
+    console.error('Erreur updateProfile:', error)
+    return res.status(500).json({ error: 'Une erreur interne est survenue lors de la mise à jour du profil.' })
   }
 }
