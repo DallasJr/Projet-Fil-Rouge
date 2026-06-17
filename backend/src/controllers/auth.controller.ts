@@ -5,6 +5,7 @@ import { prisma } from '../index'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { Role } from '@prisma/client'
+import { sendPasswordResetEmail } from '../services/email.service'
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'super-secret-key-change-this-in-production-12345!'
 const RESET_TOKEN_EXPIRATION_MINUTES = 60
@@ -148,9 +149,10 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
       },
     })
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Password reset token for ${email}: ${token}`)
-    }
+    // Envoi de l'email de réinitialisation via Nodemailer
+    // En dev  → prévisualisation Ethereal affichée dans la console
+    // En prod → envoi SMTP réel via les variables SMTP_* du .env
+    await sendPasswordResetEmail(email, token)
 
     return res.json({ message: 'Si un compte existe, un email de réinitialisation a été envoyé.' })
   } catch (error: any) {
