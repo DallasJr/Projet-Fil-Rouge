@@ -34,11 +34,8 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
     const salt = await bcrypt.genSalt(10)
     const hashedPassword = await bcrypt.hash(password, salt)
 
-    // 4. Déterminer le rôle (Optionnel : par défaut CLIENT)
+    // 4. Déterminer le rôle (Toujours CLIENT pour l'inscription publique)
     let userRole: Role = Role.CLIENT
-    if (role && Object.values(Role).includes(role as Role)) {
-      userRole = role as Role
-    }
 
     // 5. Créer l'utilisateur dans la base PostgreSQL via Prisma
     const user = await prisma.user.create({
@@ -68,6 +65,7 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        isAvailable: user.isAvailable,
       },
     })
   } catch (error: any) {
@@ -115,6 +113,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        isAvailable: user.isAvailable,
       },
     })
   } catch (error) {
@@ -222,6 +221,7 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
         name: true,
         role: true,
         phone: true,
+        isAvailable: true,
         createdAt: true,
       },
     })
@@ -233,6 +233,38 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
     return res.json(user)
   } catch (error) {
     console.error('Erreur profil:', error)
+    return res.status(500).json({ error: 'Une erreur interne est survenue.' })
+  }
+}
+
+// Mettre à jour la disponibilité (Livreur uniquement)
+export const updateAvailability = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non autorisé.' })
+    }
+
+    const { isAvailable } = req.body
+    if (isAvailable === undefined) {
+      return res.status(400).json({ error: 'isAvailable est requis.' })
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { isAvailable: Boolean(isAvailable) },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        phone: true,
+        isAvailable: true
+      }
+    })
+
+    return res.json(updatedUser)
+  } catch (error) {
+    console.error('Erreur updateAvailability:', error)
     return res.status(500).json({ error: 'Une erreur interne est survenue.' })
   }
 }

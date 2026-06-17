@@ -19,6 +19,7 @@ export interface AuthUser {
   email: string
   role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
   phone?: string | null
+  isAvailable?: boolean
 }
 
 export interface AuthResponse {
@@ -67,5 +68,10 @@ export const resetPassword = async (
   data: ResetPasswordPayload,
 ): Promise<MessageResponse> => {
   const res = await axiosClient.post<MessageResponse>('/auth/reset-password', data)
+  return res.data
+}
+
+export const updateAvailability = async (isAvailable: boolean): Promise<AuthUser> => {
+  const res = await axiosClient.patch<AuthUser>('/auth/availability', { isAvailable })
   return res.data
 }

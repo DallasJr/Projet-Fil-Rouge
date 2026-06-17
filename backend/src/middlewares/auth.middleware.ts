@@ -35,6 +35,28 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: 
   }
 }
 
+// Middleware d'authentification optionnelle (ne bloque pas si absent ou expiré)
+export const optionalAuthenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1]
+    const secret = ((process.env['JWT_SECRET'] as string) || 'super-secret-key-change-this-in-production-12345!') as Secret
+
+    try {
+      const decoded = (jwt.verify as any)(token, secret) as any
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        role: decoded.role as Role
+      }
+    } catch (err) {
+      // Ignorer l'erreur pour garder l'accès optionnel
+    }
+  }
+  return next()
+}
+
 // Middleware d'autorisation par Rôle (ex: autoriser uniquement ADMIN ou DELIVERER)
 export const authorizeRoles = (...allowedRoles: Role[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

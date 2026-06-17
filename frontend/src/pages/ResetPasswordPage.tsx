@@ -27,6 +27,13 @@ const ResetPasswordPage = () => {
 
     setError('')
     setMessage('')
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{6,}$/
+    if (!passwordRegex.test(password)) {
+      setError('Le mot de passe doit contenir au moins 6 caractères, une majuscule, un chiffre et un caractère spécial.')
+      return
+    }
+
     setIsLoading(true)
 
     try {

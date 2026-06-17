@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Delivery" ADD COLUMN     "delivererLat" DOUBLE PRECISION,
+ADD COLUMN     "delivererLng" DOUBLE PRECISION,
+ADD COLUMN     "destLat" DOUBLE PRECISION,
+ADD COLUMN     "destLng" DOUBLE PRECISION,
+ADD COLUMN     "estimatedTime" INTEGER;

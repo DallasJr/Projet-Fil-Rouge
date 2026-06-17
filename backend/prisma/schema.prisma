@@ -45,6 +45,9 @@ model User {
   password         String
   phone            String?
   role             Role              @default(CLIENT)
+  isAvailable      Boolean           @default(true)
+  isSuspended      Boolean           @default(false)
+  suspendedReason  String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   
@@ -52,8 +55,10 @@ model User {
   orders           Order[]           @relation("ClientOrders")
   deliveries       Delivery[]        @relation("DelivererDeliveries")
   addresses        Address[]
-  reviews          Review[]
-  notifications    Notification[]
+  reviews             Review[]
+  notifications       Notification[]
+  messages            Message[]
+  auditLogs           AuditLog[]
   passwordResetTokens PasswordResetToken[]
 }
 
@@ -128,6 +133,8 @@ model Order {
   delivery      Delivery?
   reviews       Review[]
   notifications Notification[]
+  messages      Message[]
+  auditLogs     AuditLog[]
 }
 
 model OrderItem {
@@ -154,6 +161,15 @@ model Delivery {
   deliveryFee    Float          @default(0.0)
   pickedAt       DateTime?
   deliveredAt    DateTime?
+  confirmedByDeliverer Boolean  @default(false)
+  confirmedByCustomer  Boolean  @default(false)
+  acceptedByDeliverer  Boolean  @default(false)
+  // Lot 2 — GPS & Géolocalisation
+  delivererLat   Float?         // Latitude actuelle du livreur (mis à jour en temps réel)
+  delivererLng   Float?         // Longitude actuelle du livreur
+  destLat        Float?         // Latitude destination (géocodée à la création)
+  destLng        Float?         // Longitude destination
+  estimatedTime  Int?           // ETA en minutes (calculé par Haversine)
   createdAt      DateTime       @default(now())
 }
 
@@ -177,6 +193,29 @@ model Notification {
   message    String
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content    String
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id])
+  action    String   // STATUS_CHANGE | DELIVERER_ASSIGNED | DELIVERY_CANCELLED | DELIVERER_REPLACED
+  oldValue  String?  // Ex: "PENDING"
+  newValue  String?  // Ex: "ACCEPTED"
+  note      String?
+  createdAt DateTime @default(now())
 }
 
 model PasswordResetToken {

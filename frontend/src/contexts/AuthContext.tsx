@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { login as apiLogin, register as apiRegister } from '../api/auth.api'
+import { login as apiLogin, register as apiRegister, updateAvailability as apiUpdateAvailability } from '../api/auth.api'
 import type { LoginPayload, RegisterPayload, AuthUser } from '../api/auth.api'
 
 interface AuthContextType {
@@ -14,6 +14,7 @@ interface AuthContextType {
   login: (data: LoginPayload) => Promise<void>
   register: (data: RegisterPayload) => Promise<void>
   logout: () => void
+  setAvailability: (isAvailable: boolean) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -54,11 +55,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(res.user)
   }
 
-  const logout = () => {
+  const logout = async () => {
+    // Si l'utilisateur est un livreur, on le met automatique hors-ligne avant déconnexion
+    if (user && user.role === 'DELIVERER') {
+      try {
+        await apiUpdateAvailability(false)
+      } catch (e) {
+        console.error('Erreur mise hors ligne à la déconnexion', e)
+      }
+    }
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setToken(null)
     setUser(null)
+  }
+
+  const setAvailability = async (isAvailable: boolean) => {
+    if (!user) return
+    const updated = await apiUpdateAvailability(isAvailable)
+    const newUser = { ...user, isAvailable: updated.isAvailable }
+    localStorage.setItem('user', JSON.stringify(newUser))
+    setUser(newUser)
   }
 
   return (
@@ -74,6 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         logout,
+        setAvailability,
       }}
     >
       {children}

@@ -8,7 +8,7 @@ import {
   updateItem,
   deleteItem
 } from '../controllers/menu.controller'
-import { authenticateJWT, authorizeRoles } from '../middlewares/auth.middleware'
+import { authenticateJWT, authorizeRoles, optionalAuthenticateJWT } from '../middlewares/auth.middleware'
 import { validateBody } from '../middlewares/validation.middleware'
 import { Role } from '@prisma/client'
 import { createCategorySchema, createItemSchema, updateItemSchema } from '../schemas/validation.schemas'
@@ -25,8 +25,8 @@ router.delete('/categories/:id', authenticateJWT, authorizeRoles(Role.ADMIN), de
 
 
 // --- ROUTES ITEMS (PLATS) ---
-// Voir tous les plats
-router.get('/items', getItems)
+// Voir tous les plats (les admins verront tous les plats, les autres verront uniquement les plats disponibles)
+router.get('/items', optionalAuthenticateJWT, getItems)
 
 // Seul le restaurant (ADMIN) peut gérer les plats de la carte
 router.post('/items', authenticateJWT, authorizeRoles(Role.ADMIN), validateBody(createItemSchema), createItem)
