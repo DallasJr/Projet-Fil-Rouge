@@ -14,7 +14,8 @@ import {
   updateDelivererLocation,
   getOrderAuditLogs,
   acceptAssignment,
-  rejectAssignment
+  rejectAssignment,
+  downloadInvoice
 } from '../controllers/order.controller'
 import { authenticateJWT, authorizeRoles } from '../middlewares/auth.middleware'
 import { Role } from '@prisma/client'
@@ -41,6 +42,8 @@ router.patch('/:id/confirm', authenticateJWT, authorizeRoles(Role.CLIENT, Role.A
 // Récupérer l'historique des messages d'une commande (tous les utilisateurs authentifiés)
 router.get('/:id/messages', authenticateJWT, getOrderMessages)
 
+// Télécharger la facture PDF d'une commande
+router.get('/:id/invoice', authenticateJWT, downloadInvoice)
 
 // --- ROUTES LIVRAISONS (DELIVERIES) ---
 

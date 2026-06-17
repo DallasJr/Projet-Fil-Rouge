@@ -36,6 +36,8 @@ Le restaurant dispose également d'un panneau d'administration dédié, permetta
 ```bash
 cd ./backend/
 npm install
+npx prisma generate
+npx prisma migrate deploy
 npm run dev
 ```
 

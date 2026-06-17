@@ -23,7 +23,7 @@ interface RichDescription {
   allergens?: string
 }
 
-const parseDescription = (rawDesc: string | null): RichDescription => {
+const parseDescription = (rawDesc: string | null | undefined): RichDescription => {
   if (!rawDesc) return {}
   if (rawDesc.trim().startsWith('{')) {
     try {

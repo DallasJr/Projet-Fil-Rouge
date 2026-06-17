@@ -388,3 +388,176 @@ export const exportUsersCSV = async (req: AuthenticatedRequest, res: Response) =
     return res.status(500).json({ error: 'Impossible d\'exporter les données.' })
   }
 }
+
+// 16. Récupérer les statistiques agrégées pour le Dashboard
+export const getDashboardStats = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const now = new Date()
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+    // 1. Chiffre d'affaires
+    const completedOrders = await prisma.order.findMany({
+      where: { status: 'DELIVERED' },
+      select: { totalAmount: true }
+    })
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0)
+
+    const orders7Days = await prisma.order.findMany({
+      where: {
+        status: 'DELIVERED',
+        createdAt: { gte: sevenDaysAgo }
+      },
+      select: { totalAmount: true }
+    })
+    const revenue7Days = orders7Days.reduce((sum, o) => sum + o.totalAmount, 0)
+
+    const orders30Days = await prisma.order.findMany({
+      where: {
+        status: 'DELIVERED',
+        createdAt: { gte: thirtyDaysAgo }
+      },
+      select: { totalAmount: true }
+    })
+    const revenue30Days = orders30Days.reduce((sum, o) => sum + o.totalAmount, 0)
+
+    // 2. Commandes par statut
+    const ordersGroupByStatus = await prisma.order.groupBy({
+      by: ['status'],
+      _count: { _all: true }
+    })
+    const ordersByStatus: Record<string, number> = {
+      PENDING: 0,
+      ACCEPTED: 0,
+      PREPARING: 0,
+      READY: 0,
+      DELIVERING: 0,
+      DELIVERED: 0,
+      CANCELLED: 0
+    }
+    ordersGroupByStatus.forEach(group => {
+      ordersByStatus[group.status] = group._count._all
+    })
+
+    const totalOrdersCount = Object.values(ordersByStatus).reduce((a, b) => a + b, 0)
+
+    // 3. Utilisateurs par rôle
+    const usersGroupByRole = await prisma.user.groupBy({
+      by: ['role'],
+      _count: { _all: true }
+    })
+    const usersByRole: Record<string, number> = {
+      CLIENT: 0,
+      DELIVERER: 0,
+      ADMIN: 0
+    }
+    usersGroupByRole.forEach(group => {
+      usersByRole[group.role] = group._count._all
+    })
+
+    const activeDeliverersCount = await prisma.user.count({
+      where: {
+        role: 'DELIVERER',
+        isAvailable: true,
+        isSuspended: false
+      }
+    })
+
+    // 4. Notes et Avis
+    const reviewsStats = await prisma.review.aggregate({
+      _avg: { rating: true },
+      _count: { _all: true }
+    })
+    const avgRating = reviewsStats._avg.rating || 0
+    const totalReviews = reviewsStats._count._all || 0
+
+    const recentReviews = await prisma.review.findMany({
+      include: {
+        customer: {
+          select: { id: true, name: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 15
+    })
+
+    // 5. Chiffre d'affaires journalier (7 derniers jours)
+    const dailyRevenue = []
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date()
+      dayStart.setHours(0, 0, 0, 0)
+      dayStart.setDate(dayStart.getDate() - i)
+      const dayEnd = new Date(dayStart)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+
+      const dayOrders = await prisma.order.findMany({
+        where: {
+          status: 'DELIVERED',
+          createdAt: {
+            gte: dayStart,
+            lt: dayEnd
+          }
+        },
+        select: { totalAmount: true }
+      })
+      const amount = dayOrders.reduce((sum, o) => sum + o.totalAmount, 0)
+      const dateString = dayStart.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+      dailyRevenue.push({ date: dateString, amount })
+    }
+
+    // 6. Top 5 des produits vendus (commandes livrées uniquement)
+    const orderItems = await prisma.orderItem.findMany({
+      where: {
+        order: {
+          status: 'DELIVERED'
+        }
+      },
+      include: {
+        item: true
+      }
+    })
+
+    const itemsMap: Record<string, { id: string; name: string; quantity: number; revenue: number; imageUrl?: string | null }> = {}
+    orderItems.forEach(oi => {
+      if (!oi.item) return
+      const itemId = oi.itemId
+      if (!itemsMap[itemId]) {
+        itemsMap[itemId] = { id: oi.item.id, name: oi.item.name, quantity: 0, revenue: 0, imageUrl: oi.item.imageUrl }
+      }
+      const entry = itemsMap[itemId]!
+      entry.quantity += oi.quantity
+      entry.revenue += oi.unitPrice * oi.quantity
+    })
+
+    const topItems = Object.values(itemsMap)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5)
+
+    return res.json({
+      revenue: {
+        total: totalRevenue,
+        last7Days: revenue7Days,
+        last30Days: revenue30Days,
+        daily: dailyRevenue
+      },
+      orders: {
+        total: totalOrdersCount,
+        byStatus: ordersByStatus
+      },
+      users: {
+        total: Object.values(usersByRole).reduce((a, b) => a + b, 0),
+        byRole: usersByRole,
+        activeDeliverers: activeDeliverersCount
+      },
+      reviews: {
+        count: totalReviews,
+        avgRating: Math.round(avgRating * 10) / 10,
+        recent: recentReviews
+      },
+      topItems
+    })
+  } catch (error: any) {
+    console.error('Erreur getDashboardStats:', error)
+    return res.status(500).json({ error: 'Impossible de calculer les statistiques du dashboard.' })
+  }
+}
