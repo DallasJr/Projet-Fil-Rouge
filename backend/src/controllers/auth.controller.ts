@@ -5,6 +5,7 @@ import { prisma } from '../index'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { Role } from '@prisma/client'
+import { sendPasswordResetEmail } from '../services/email.service'
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'super-secret-key-change-this-in-production-12345!'
 const RESET_TOKEN_EXPIRATION_MINUTES = 60
@@ -148,6 +149,11 @@ export const forgotPassword = async (req: AuthenticatedRequest, res: Response) =
         tokenHash,
         expiresAt,
       },
+    })
+
+    // Envoyer le mail de réinitialisation
+    sendPasswordResetEmail(user.email, token, user.name).catch((err) => {
+      console.error("Erreur d'envoi d'email de réinitialisation de mot de passe:", err)
     })
 
     if (process.env.NODE_ENV !== 'production') {

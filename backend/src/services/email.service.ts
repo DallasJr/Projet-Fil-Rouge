@@ -181,3 +181,38 @@ export const sendDeliveryRecapEmail = async (order: any, customerEmail: string, 
 
   await sendEmail(customerEmail, `Votre commande #${orderShortId} a été livrée ! - RestauApp`, html)
 }
+
+export const sendPasswordResetEmail = async (email: string, token: string, name: string) => {
+  const frontendUrl = process.env['FRONTEND_URL'] || 'http://localhost:5173'
+  const resetUrl = `${frontendUrl}/reset-password?token=${token}`
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6; border: 1px solid #eee; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+      <div style="background-color: #f97316; padding: 20px; text-align: center; color: white;">
+        <h1 style="margin: 0; font-size: 24px;">RestauApp</h1>
+        <p style="margin: 5px 0 0 0; font-size: 16px;">Réinitialisation de mot de passe</p>
+      </div>
+      <div style="padding: 20px;">
+        <p>Bonjour <strong>${name}</strong>,</p>
+        <p>Vous avez demandé la réinitialisation de votre mot de passe pour votre compte RestauApp.</p>
+        <p>Pour définir un nouveau mot de passe, veuillez cliquer sur le bouton ci-dessous :</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetUrl}" style="background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 6px; display: inline-block;">Réinitialiser mon mot de passe</a>
+        </div>
+
+        <p>Ou copiez et collez le lien suivant dans votre navigateur :<br/>
+        <a href="${resetUrl}" style="color: #f97316;">${resetUrl}</a></p>
+
+        <p style="color: #666; font-size: 13px; margin-top: 20px;">Ce lien expirera dans 60 minutes. Si vous n'avez pas demandé cette réinitialisation, vous pouvez ignorer cet email en toute sécurité.</p>
+
+        <p style="margin-top: 30px;">Cordialement,<br/>L'équipe RestauApp</p>
+      </div>
+      <div style="background-color: #eaeaea; padding: 15px; text-align: center; font-size: 12px; color: #666;">
+        Ceci est un email automatique, merci de ne pas y répondre.
+      </div>
+    </div>
+  `
+
+  await sendEmail(email, 'Réinitialisation de votre mot de passe - RestauApp', html)
+}
