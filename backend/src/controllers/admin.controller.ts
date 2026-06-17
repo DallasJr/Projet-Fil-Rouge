@@ -1,6 +1,7 @@
 import { Response } from 'express'
 import { AuthenticatedRequest } from '../middlewares/auth.middleware'
 import { prisma } from '../index'
+import { createAndSendNotification } from './notification.controller'
 import bcrypt from 'bcryptjs'
 import { Role } from '@prisma/client'
 
@@ -325,13 +326,10 @@ export const sendDirectMessage = async (req: AuthenticatedRequest, res: Response
       return res.status(404).json({ error: 'Utilisateur non trouvé.' })
     }
 
-    const notification = await prisma.notification.create({
-      data: {
-        userId,
-        message: `📢 Message de l'administration : ${message.trim()}`,
-        isRead: false,
-      }
-    })
+    const notification = await createAndSendNotification(
+      userId,
+      `📢 Message de l'administration : ${message.trim()}`
+    )
 
     return res.json({ success: true, notification })
   } catch (error: any) {

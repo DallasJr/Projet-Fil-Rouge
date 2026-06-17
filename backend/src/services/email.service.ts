@@ -216,3 +216,31 @@ export const sendPasswordResetEmail = async (email: string, token: string, name:
 
   await sendEmail(email, 'Réinitialisation de votre mot de passe - RestauApp', html)
 }
+
+export const sendNotificationEmail = async (email: string, name: string, message: string) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6; border: 1px solid #eee; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+      <div style="background-color: #f97316; padding: 20px; text-align: center; color: white;">
+        <h1 style="margin: 0; font-size: 24px;">RestauApp</h1>
+        <p style="margin: 5px 0 0 0; font-size: 16px;">Nouvelle notification</p>
+      </div>
+      <div style="padding: 20px;">
+        <p>Bonjour <strong>${name}</strong>,</p>
+        <p>Vous avez reçu une nouvelle mise à jour sur RestauApp :</p>
+        
+        <div style="background-color: #f7f7f7; padding: 15px; border-radius: 6px; border-left: 4px solid #f97316; margin: 20px 0; font-size: 15px; font-weight: bold; color: #333;">
+          ${message}
+        </div>
+
+        <p>Pour en savoir plus ou suivre votre commande, vous pouvez vous connecter sur notre application.</p>
+
+        <p style="margin-top: 30px;">Cordialement,<br/>L'équipe RestauApp</p>
+      </div>
+      <div style="background-color: #eaeaea; padding: 15px; text-align: center; font-size: 12px; color: #666;">
+        Vous recevez cet email suite à une notification sur votre compte RestauApp.
+      </div>
+    </div>
+  `
+
+  await sendEmail(email, 'Nouvelle notification - RestauApp', html)
+}
