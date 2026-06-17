@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { Response } from 'express'
 import { AuthenticatedRequest } from '../middlewares/auth.middleware'
 import { prisma } from '../index'
@@ -6,6 +7,12 @@ import jwt from 'jsonwebtoken'
 import { Role } from '@prisma/client'
 
 const JWT_SECRET = process.env['JWT_SECRET'] || 'super-secret-key-change-this-in-production-12345!'
+const RESET_TOKEN_EXPIRATION_MINUTES = 60
+
+const hashToken = (token: string) =>
+  crypto.createHash('sha256').update(token).digest('hex')
+
+const generateResetToken = () => crypto.randomBytes(32).toString('hex')
 
 // Inscription (Register)
 export const register = async (req: AuthenticatedRequest, res: Response) => {
@@ -112,6 +119,90 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
   } catch (error) {
     console.error('Erreur connexion:', error)
     return res.status(500).json({ error: 'Une erreur interne est survenue lors de la connexion.' })
+  }
+}
+
+// Demander la réinitialisation du mot de passe
+export const forgotPassword = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email requis.' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) {
+      return res.json({ message: 'Si un compte existe, un email de réinitialisation a été envoyé.' })
+    }
+
+    const token = generateResetToken()
+    const tokenHash = hashToken(token)
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRATION_MINUTES * 60 * 1000)
+
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    })
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Password reset token for ${email}: ${token}`)
+    }
+
+    return res.json({ message: 'Si un compte existe, un email de réinitialisation a été envoyé.' })
+  } catch (error: any) {
+    console.error('Erreur forgotPassword:', error)
+    return res.status(500).json({ error: 'Une erreur interne est survenue lors de la demande de réinitialisation.' })
+  }
+}
+
+// Réinitialiser le mot de passe avec le token
+export const resetPassword = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { token, newPassword } = req.body
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token et nouveau mot de passe requis.' })
+    }
+
+    const tokenHash = hashToken(token)
+    const resetRecord = await prisma.passwordResetToken.findFirst({
+      where: {
+        tokenHash,
+        used: false,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        user: true,
+      },
+    })
+
+    if (!resetRecord || !resetRecord.user) {
+      return res.status(400).json({ error: 'Token invalide ou expiré.' })
+    }
+
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(newPassword, salt)
+
+    await prisma.user.update({
+      where: { id: resetRecord.userId },
+      data: { password: hashedPassword },
+    })
+
+    await prisma.passwordResetToken.update({
+      where: { id: resetRecord.id },
+      data: { used: true },
+    })
+
+    return res.json({ message: 'Le mot de passe a été réinitialisé avec succès.' })
+  } catch (error: any) {
+    console.error('Erreur resetPassword:', error)
+    return res.status(500).json({ error: 'Une erreur interne est survenue lors de la réinitialisation du mot de passe.' })
   }
 }
 

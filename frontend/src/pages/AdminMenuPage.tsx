@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2, AlertCircle, CheckCircle, X, Tag, UtensilsCrossed, Filter, Search, ChevronDown } from 'lucide-react'
 import { getCategories, getItems, createCategory, deleteCategory, createItem, updateItem, deleteItem } from '../api/menu.api'
 import type { Category, Item } from '../api/menu.api'
+import { uploadImage } from '../api/uploads.api'
 
 const RESTAURANT_ID = import.meta.env.VITE_RESTAURANT_ID || ''
 
@@ -53,6 +54,23 @@ const AdminMenuPage = () => {
   })
   const [catForm, setCatForm] = useState({ name: '' })
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingImage(true)
+    setError('')
+    try {
+      const data = await uploadImage(file)
+      setItemForm(f => ({ ...f, imageUrl: data.url }))
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Erreur lors de l'upload de l'image.")
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
 
   // Filtres
   const [searchTerm, setSearchTerm] = useState('')
@@ -497,8 +515,32 @@ const AdminMenuPage = () => {
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">URL Image (optionnel)</label>
-                <input id="item-image" className="form-input" type="url" placeholder="https://..." value={itemForm.imageUrl} onChange={e => setItemForm(f => ({ ...f, imageUrl: e.target.value }))} />
+                <label className="form-label">Image (Saisir URL ou Uploader un fichier)</label>
+                <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+                  <input
+                    id="item-image"
+                    className="form-input"
+                    type="url"
+                    placeholder="https://..."
+                    value={itemForm.imageUrl}
+                    onChange={e => setItemForm(f => ({ ...f, imageUrl: e.target.value }))}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      disabled={isUploadingImage}
+                      style={{ fontSize: '14px' }}
+                    />
+                    {isUploadingImage && <span className="btn-spinner" style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></span>}
+                  </div>
+                  {itemForm.imageUrl && (
+                    <div style={{ marginTop: '8px' }}>
+                      <img src={itemForm.imageUrl} alt="Aperçu" style={{ maxWidth: '100px', maxHeight: '100px', borderRadius: '4px', objectFit: 'cover' }} />
+                    </div>
+                  )}
+                </div>
               </div>
               <label className="toggle-label">
                 <input id="item-available" type="checkbox" checked={itemForm.isAvailable} onChange={e => setItemForm(f => ({ ...f, isAvailable: e.target.checked }))} />

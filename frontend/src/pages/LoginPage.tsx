@@ -100,6 +100,12 @@ const LoginPage = () => {
           </button>
         </form>
 
+        <p className="auth-footer auth-footer-secondary">
+          <Link to="/forgot-password" className="auth-link">
+            Mot de passe oublié ?
+          </Link>
+        </p>
+
         <p className="auth-footer">
           Pas encore de compte ?{' '}
           <Link to="/register" id="link-register" className="auth-link">

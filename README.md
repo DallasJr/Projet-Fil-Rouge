@@ -41,6 +41,18 @@ npx prisma migrate deploy
 npm run dev
 ```
 
+Variables utiles pour l'upload d'images Cloudinary :
+
+```env
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_UPLOAD_PRESET=...
+# ou, sans preset non signe :
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+```
+
+Les images sont envoyees au backend en `multipart/form-data` avec Multer, puis stockees sur Cloudinary.
+
 ### Frontend
 
 ```bash
