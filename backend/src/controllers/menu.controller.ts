@@ -80,7 +80,7 @@ export const getItems = async (req: AuthenticatedRequest, res: Response) => {
 // Créer un item (ADMIN uniquement)
 export const createItem = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { name, description, price, imageUrl, isAvailable, categoryId } = req.body
+    const { name, description, price, imageUrl, isAvailable, isVegetarian, isGlutenFree, isSpicy, categoryId } = req.body
 
     if (!name || price === undefined || !categoryId) {
       return res.status(400).json({ error: 'Les champs name, price et categoryId sont obligatoires.' })
@@ -93,6 +93,9 @@ export const createItem = async (req: AuthenticatedRequest, res: Response) => {
         price: parseFloat(price),
         imageUrl: imageUrl ? String(imageUrl) : null,
         isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : true,
+        isVegetarian: isVegetarian !== undefined ? Boolean(isVegetarian) : false,
+        isGlutenFree: isGlutenFree !== undefined ? Boolean(isGlutenFree) : false,
+        isSpicy: isSpicy !== undefined ? Boolean(isSpicy) : false,
         categoryId: String(categoryId)
       }
     })
@@ -107,7 +110,7 @@ export const createItem = async (req: AuthenticatedRequest, res: Response) => {
 export const updateItem = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params
-    const { name, description, price, imageUrl, isAvailable, categoryId } = req.body
+    const { name, description, price, imageUrl, isAvailable, isVegetarian, isGlutenFree, isSpicy, categoryId } = req.body
 
     const itemId = String(id)
     const existingItem = await prisma.item.findUnique({ where: { id: itemId } })
@@ -123,6 +126,9 @@ export const updateItem = async (req: AuthenticatedRequest, res: Response) => {
         price: price !== undefined ? parseFloat(price) : existingItem.price,
         imageUrl: imageUrl !== undefined ? String(imageUrl) : existingItem.imageUrl,
         isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : existingItem.isAvailable,
+        isVegetarian: isVegetarian !== undefined ? Boolean(isVegetarian) : existingItem.isVegetarian,
+        isGlutenFree: isGlutenFree !== undefined ? Boolean(isGlutenFree) : existingItem.isGlutenFree,
+        isSpicy: isSpicy !== undefined ? Boolean(isSpicy) : existingItem.isSpicy,
         categoryId: categoryId !== undefined ? String(categoryId) : existingItem.categoryId
       }
     })

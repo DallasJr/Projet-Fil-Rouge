@@ -1,4 +1,4 @@
-﻿import axiosClient from './axiosClient'
+import axiosClient from './axiosClient'
 
 export interface LoginPayload {
   email: string
@@ -19,6 +19,7 @@ export interface AuthUser {
   email: string
   role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
   phone?: string | null
+  avatarUrl?: string | null
   isAvailable?: boolean
 }
 
@@ -73,5 +74,10 @@ export const resetPassword = async (
 
 export const updateAvailability = async (isAvailable: boolean): Promise<AuthUser> => {
   const res = await axiosClient.patch<AuthUser>('/auth/availability', { isAvailable })
+  return res.data
+}
+
+export const updateProfile = async (data: { name?: string; phone?: string | null; avatarUrl?: string | null }): Promise<AuthUser> => {
+  const res = await axiosClient.patch<AuthUser>('/auth/profile', data)
   return res.data
 }

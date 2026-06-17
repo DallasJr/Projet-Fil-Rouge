@@ -132,6 +132,8 @@ const MenuPage = () => {
   // ── Collapsible Filters ──
   const [showFiltersPanel, setShowFiltersPanel] = useState(false)
   const [filterVegOnly, setFilterVegOnly] = useState(false)
+  const [filterGlutenFree, setFilterGlutenFree] = useState(false)
+  const [filterSpicy, setFilterSpicy] = useState(false)
   const [filterMaxPrice, setFilterMaxPrice] = useState<number>(50)
   const [filterMinSpice, setFilterMinSpice] = useState<number>(0)
   const [excludedAllergens, setExcludedAllergens] = useState<string[]>([])
@@ -220,7 +222,9 @@ const MenuPage = () => {
 
     // Advanced Filters
     const rich = parseDescription(item.description)
-    if (filterVegOnly && !rich.isVeg) return false
+    if (filterVegOnly && !item.isVegetarian && !rich.isVeg) return false
+    if (filterGlutenFree && !item.isGlutenFree) return false
+    if (filterSpicy && !item.isSpicy && !(rich.spice && rich.spice > 0)) return false
     if (filterMaxPrice !== null && item.price > filterMaxPrice) return false
     if (filterMinSpice > 0 && (rich.spice || 0) < filterMinSpice) return false
     if (excludedAllergens.length > 0 && rich.allergens) {
@@ -323,7 +327,38 @@ const MenuPage = () => {
     .filter(it => it.isAvailable && !cart.find(c => c.id === it.id))
     .slice(0, 3)
 
-  if (isLoading) return <div className="loading-screen"><div className="loading-spinner"></div></div>
+  if (isLoading) {
+    return (
+      <div className="menu-page">
+        <div className="menu-hero-header">
+          <div className="menu-hero-content" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="skeleton" style={{ height: '36px', width: '250px' }}></div>
+            <div className="skeleton" style={{ height: '20px', width: '400px' }}></div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px', margin: '24px 0', overflowX: 'hidden' }}>
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="skeleton" style={{ height: '34px', width: '90px', borderRadius: '17px' }}></div>
+          ))}
+        </div>
+        <div className="products-grid">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="product-card" style={{ height: '340px', display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px' }}>
+              <div className="skeleton" style={{ height: '160px', width: '100%', borderRadius: '12px' }}></div>
+              <div className="skeleton" style={{ height: '14px', width: '60px' }}></div>
+              <div className="skeleton" style={{ height: '20px', width: '80%' }}></div>
+              <div className="skeleton" style={{ height: '14px', width: '100%' }}></div>
+              <div className="skeleton" style={{ height: '14px', width: '90%' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                <div className="skeleton" style={{ height: '24px', width: '60px' }}></div>
+                <div className="skeleton" style={{ height: '32px', width: '80px', borderRadius: '16px' }}></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="menu-page">
@@ -433,9 +468,9 @@ const MenuPage = () => {
           <div className="filter-panel-header" onClick={() => setShowFiltersPanel(v => !v)}>
             <span className="filter-panel-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Filter size={13} style={{ color: 'var(--color-primary)' }} /> Filtres avancés
-              {(filterMaxPrice !== 50 || excludedAllergens.length > 0) && (
+              {(filterMaxPrice !== 50 || excludedAllergens.length > 0 || filterVegOnly || filterGlutenFree || filterSpicy) && (
                 <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '10px', background: 'var(--color-primary)', color: '#fff', fontWeight: '700', marginLeft: '6px' }}>
-                  {[filterMaxPrice !== 50 && '1', excludedAllergens.length > 0 && '1'].filter(Boolean).length}
+                  {[filterMaxPrice !== 50 && '1', excludedAllergens.length > 0 && '1', filterVegOnly && '1', filterGlutenFree && '1', filterSpicy && '1'].filter(Boolean).length}
                 </span>
               )}
             </span>
@@ -457,6 +492,33 @@ const MenuPage = () => {
                     onChange={e => setFilterMaxPrice(Number(e.target.value))}
                     style={{ width: '100%', accentColor: 'var(--color-primary)', cursor: 'pointer' }}
                   />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-text-dim)' }}>Préférences de filtrage</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setFilterVegOnly(v => !v)}
+                    style={{ padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: '20px', background: filterVegOnly ? 'rgba(34,197,94,0.1)' : 'var(--color-surface)', color: filterVegOnly ? '#22c55e' : 'var(--color-text)', cursor: 'pointer', fontSize: '11px', fontWeight: '600', transition: 'all 0.15s' }}
+                  >
+                    🌿 Végétarien
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterGlutenFree(v => !v)}
+                    style={{ padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: '20px', background: filterGlutenFree ? 'rgba(234,179,8,0.1)' : 'var(--color-surface)', color: filterGlutenFree ? '#eab308' : 'var(--color-text)', cursor: 'pointer', fontSize: '11px', fontWeight: '600', transition: 'all 0.15s' }}
+                  >
+                    🌾 Sans gluten
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterSpicy(v => !v)}
+                    style={{ padding: '6px 12px', border: '1px solid var(--color-border)', borderRadius: '20px', background: filterSpicy ? 'rgba(239,68,68,0.1)' : 'var(--color-surface)', color: filterSpicy ? '#ef4444' : 'var(--color-text)', cursor: 'pointer', fontSize: '11px', fontWeight: '600', transition: 'all 0.15s' }}
+                  >
+                    🌶️ Épicé
+                  </button>
                 </div>
               </div>
 
@@ -484,6 +546,8 @@ const MenuPage = () => {
                   type="button"
                   onClick={() => {
                     setFilterVegOnly(false)
+                    setFilterGlutenFree(false)
+                    setFilterSpicy(false)
                     setFilterMaxPrice(50)
                     setFilterMinSpice(0)
                     setExcludedAllergens([])
@@ -522,11 +586,54 @@ const MenuPage = () => {
       {/* ── Products Grid / List ── */}
       <div className={viewMode === 'grid' ? 'products-grid menu-grid-enhanced' : 'products-list-view'}>
         {filteredItems.length === 0 ? (
-          <div className="empty-state" style={{ gridColumn: '1/-1' }}>
-            <div className="empty-state-icon">{showFavOnly ? '💔' : '🍽️'}</div>
-            <h2>{showFavOnly ? 'Aucun favori' : 'Aucun plat trouvé'}</h2>
-            <p>{showFavOnly ? 'Ajoutez des plats à vos favoris avec le ❤️' : 'Essayez une autre catégorie ou terme de recherche.'}</p>
-            {showFavOnly && <button className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }} onClick={() => setShowFavOnly(false)}>Voir tous les plats</button>}
+          <div className="empty-state" style={{
+            gridColumn: '1/-1',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-xl)',
+            padding: '4rem 2rem',
+            textAlign: 'center',
+            boxShadow: 'var(--shadow-md)',
+            maxWidth: '500px',
+            margin: '2rem auto',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <div className="empty-state-icon" style={{
+              fontSize: '4rem',
+              lineHeight: 1,
+              animation: 'bounce 2s infinite',
+              marginBottom: '10px'
+            }}>{showFavOnly ? '💔' : '🍽️'}</div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800' }}>
+              {showFavOnly ? 'Aucun favori' : 'Aucun plat trouvé'}
+            </h2>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', maxWidth: '360px', margin: '0 auto 10px' }}>
+              {showFavOnly 
+                ? 'Ajoutez des plats à vos favoris avec le ❤️' 
+                : 'Essayez de réinitialiser vos filtres ou de modifier votre recherche.'
+              }
+            </p>
+            {showFavOnly ? (
+              <button className="btn btn-secondary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => setShowFavOnly(false)}>
+                Voir tous les plats
+              </button>
+            ) : (
+              <button className="btn btn-secondary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => {
+                setSearchQuery('')
+                setSearch('')
+                setFilterVegOnly(false)
+                setFilterGlutenFree(false)
+                setFilterSpicy(false)
+                setFilterMaxPrice(50)
+                setFilterMinSpice(0)
+                setExcludedAllergens([])
+              }}>
+                Réinitialiser les filtres
+              </button>
+            )}
           </div>
         ) : (
           filteredItems.map(item => {
@@ -542,9 +649,11 @@ const MenuPage = () => {
                     : <div className="product-list-img-ph">🍽️</div>
                   }
                   <div className="product-list-body">
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <span className="product-category">{item.category?.name}</span>
-                      {rich.isVeg && <span className="badge-veg">🌿 Végé</span>}
+                      {(item.isVegetarian || rich.isVeg) && <span className="badge-veg" style={{ background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold' }}>🌿 Végé</span>}
+                      {item.isGlutenFree && <span className="badge-gf" style={{ background: '#fef9c3', color: '#854d0e', padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold' }}>🌾 Sans Gluten</span>}
+                      {(item.isSpicy || (rich.spice && rich.spice > 0)) && <span className="badge-spicy" style={{ background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold' }}>🌶️ Épicé</span>}
                     </div>
                     <h3 className="product-name" style={{ marginTop: '4px' }}>{item.name}</h3>
                     {rich.desc && <p className="product-description">{rich.desc}</p>}
@@ -608,11 +717,15 @@ const MenuPage = () => {
                     onClick={() => toggleFavorite(item.id)}
                     title={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                   ><Heart size={15} fill={isFav ? 'currentColor' : 'none'} /></button>
-                  {rich.isVeg && <span className="badge-veg badge-veg-card">🌿</span>}
                 </div>
                 <div className="product-info">
-                  <span className="product-category">{item.category?.name}</span>
-                  <h3 className="product-name">{item.name}</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                    <span className="product-category">{item.category?.name}</span>
+                    {(item.isVegetarian || rich.isVeg) && <span style={{ fontSize: '12px' }} title="Végétarien">🌿</span>}
+                    {item.isGlutenFree && <span style={{ fontSize: '12px' }} title="Sans Gluten">🌾</span>}
+                    {(item.isSpicy || (rich.spice && rich.spice > 0)) && <span style={{ fontSize: '12px' }} title="Épicé">🌶️</span>}
+                  </div>
+                  <h3 className="product-name" style={{ marginTop: 0 }}>{item.name}</h3>
                   {rich.desc && <p className="product-description">{rich.desc}</p>}
                   <div className="product-meta-chips">
                     {rich.prepTime && <span className="meta-chip"><Clock size={10} />{rich.prepTime}min</span>}

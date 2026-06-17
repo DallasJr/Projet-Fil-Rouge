@@ -65,6 +65,7 @@ export const register = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatarUrl: user.avatarUrl,
         isAvailable: user.isAvailable,
       },
     })
@@ -113,6 +114,7 @@ export const login = async (req: AuthenticatedRequest, res: Response) => {
         name: user.name,
         role: user.role,
         phone: user.phone,
+        avatarUrl: user.avatarUrl,
         isAvailable: user.isAvailable,
       },
     })
@@ -221,6 +223,7 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
         name: true,
         role: true,
         phone: true,
+        avatarUrl: true,
         isAvailable: true,
         createdAt: true,
       },
@@ -258,6 +261,7 @@ export const updateAvailability = async (req: AuthenticatedRequest, res: Respons
         name: true,
         role: true,
         phone: true,
+        avatarUrl: true,
         isAvailable: true
       }
     })
@@ -266,5 +270,40 @@ export const updateAvailability = async (req: AuthenticatedRequest, res: Respons
   } catch (error) {
     console.error('Erreur updateAvailability:', error)
     return res.status(500).json({ error: 'Une erreur interne est survenue.' })
+  }
+}
+
+// Mettre à jour le profil (nom, téléphone, avatar)
+export const updateProfile = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non autorisé.' })
+    }
+
+    const { name, phone, avatarUrl } = req.body
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        name: name !== undefined ? String(name) : undefined,
+        phone: phone !== undefined ? (phone === '' ? null : String(phone)) : undefined,
+        avatarUrl: avatarUrl !== undefined ? (avatarUrl === '' ? null : String(avatarUrl)) : undefined,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        phone: true,
+        avatarUrl: true,
+        isAvailable: true,
+        createdAt: true,
+      },
+    })
+
+    return res.json(updatedUser)
+  } catch (error: any) {
+    console.error('Erreur updateProfile:', error)
+    return res.status(500).json({ error: 'Une erreur interne est survenue lors de la mise à jour du profil.' })
   }
 }

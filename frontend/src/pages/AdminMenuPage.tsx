@@ -47,6 +47,9 @@ const AdminMenuPage = () => {
     price: '',
     imageUrl: '',
     isAvailable: true,
+    isVegetarian: false,
+    isGlutenFree: false,
+    isSpicy: false,
     categoryId: '',
     calories: '',
     prepTime: '',
@@ -116,6 +119,9 @@ const AdminMenuPage = () => {
       price: '',
       imageUrl: '',
       isAvailable: true,
+      isVegetarian: false,
+      isGlutenFree: false,
+      isSpicy: false,
       categoryId: categories[0]?.id || '',
       calories: '',
       prepTime: '',
@@ -135,6 +141,9 @@ const AdminMenuPage = () => {
       price: String(item.price),
       imageUrl: item.imageUrl || '',
       isAvailable: item.isAvailable,
+      isVegetarian: !!item.isVegetarian,
+      isGlutenFree: !!item.isGlutenFree,
+      isSpicy: !!item.isSpicy,
       categoryId: item.categoryId,
       calories: rich.calories || '',
       prepTime: rich.prepTime || '',
@@ -167,6 +176,9 @@ const AdminMenuPage = () => {
         price: parsedPrice,
         imageUrl: itemForm.imageUrl || undefined,
         isAvailable: itemForm.isAvailable,
+        isVegetarian: itemForm.isVegetarian,
+        isGlutenFree: itemForm.isGlutenFree,
+        isSpicy: itemForm.isSpicy,
         categoryId: itemForm.categoryId,
       }
       if (editingItem) {
@@ -355,7 +367,12 @@ const AdminMenuPage = () => {
                           )}
                         </div>
                         <div>
-                          <div className="item-name" style={{ color: item.isAvailable ? undefined : '#94a3b8' }}>{item.name}</div>
+                          <div className="item-name" style={{ color: item.isAvailable ? undefined : '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {item.name}
+                            {item.isVegetarian && <span style={{ fontSize: '11px' }} title="Végétarien">🌿</span>}
+                            {item.isGlutenFree && <span style={{ fontSize: '11px' }} title="Sans gluten">🌾</span>}
+                            {item.isSpicy && <span style={{ fontSize: '11px' }} title="Épicé">🌶️</span>}
+                          </div>
                           {item.description && (
                             <div className="text-muted text-sm">
                               {(() => {
@@ -546,6 +563,20 @@ const AdminMenuPage = () => {
                 <input id="item-available" type="checkbox" checked={itemForm.isAvailable} onChange={e => setItemForm(f => ({ ...f, isAvailable: e.target.checked }))} />
                 <span className="toggle-text">Disponible à la commande</span>
               </label>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '12px' }}>
+                <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                  <input id="item-veg" type="checkbox" checked={itemForm.isVegetarian} onChange={e => setItemForm(f => ({ ...f, isVegetarian: e.target.checked }))} />
+                  <span className="toggle-text">🌿 Végétarien</span>
+                </label>
+                <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                  <input id="item-gf" type="checkbox" checked={itemForm.isGlutenFree} onChange={e => setItemForm(f => ({ ...f, isGlutenFree: e.target.checked }))} />
+                  <span className="toggle-text">🌾 Sans gluten</span>
+                </label>
+                <label className="toggle-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                  <input id="item-spicy" type="checkbox" checked={itemForm.isSpicy} onChange={e => setItemForm(f => ({ ...f, isSpicy: e.target.checked }))} />
+                  <span className="toggle-text">🌶️ Épicé</span>
+                </label>
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowItemModal(false)}>Annuler</button>

@@ -7,6 +7,7 @@ import { createAndSendNotification } from './notification.controller'
 import { geocodeAddress, haversine, calculateETA } from '../utils/haversine'
 import { createAuditLog } from '../utils/auditLog'
 import PDFDocument from 'pdfkit'
+import { sendOrderConfirmationEmail, sendDeliveryRecapEmail } from '../services/email.service'
 
 // Cycle de statut autorisé — l'admin NE PEUT PAS sauter des étapes
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -118,6 +119,13 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response) => {
 
     // Notifier en temps réel via Socket
     notifyOrderCreated(order)
+
+    // Envoyer l'email de confirmation au client
+    if (customer && customer.email) {
+      sendOrderConfirmationEmail(order, customer.email, customer.name).catch(err => {
+        console.error("Erreur d'envoi d'email de confirmation:", err)
+      })
+    }
 
     return res.status(201).json(order)
   } catch (error: any) {
@@ -470,6 +478,24 @@ export const updateDeliveryStatus = async (req: AuthenticatedRequest, res: Respo
         data: { status: OrderStatus.DELIVERED }
       })
       notifyOrderStatusUpdate(updatedDelivery.orderId, OrderStatus.DELIVERED)
+
+      // Envoyer le récapitulatif par email
+      prisma.order.findUnique({
+        where: { id: updatedDelivery.orderId },
+        include: {
+          items: { include: { item: true } },
+          customer: true,
+          delivery: { include: { deliverer: true } }
+        }
+      }).then(fullOrder => {
+        if (fullOrder && fullOrder.customer && fullOrder.customer.email) {
+          sendDeliveryRecapEmail(fullOrder, fullOrder.customer.email, fullOrder.customer.name).catch(err => {
+            console.error("Erreur d'envoi d'email de récapitulatif de livraison (updateDeliveryStatus):", err)
+          })
+        }
+      }).catch(err => {
+        console.error("Erreur récupération commande pour email (updateDeliveryStatus):", err)
+      })
     } else if (status === DeliveryStatus.PICKED_UP) {
       // Devient véritablement "En livraison"
       await prisma.order.update({
@@ -806,6 +832,24 @@ export const confirmDelivery = async (req: AuthenticatedRequest, res: Response) 
       })
       // Émettre l'événement temps réel final
       notifyOrderStatusUpdate(orderId, OrderStatus.DELIVERED)
+
+      // Envoyer le récapitulatif par email
+      prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: { include: { item: true } },
+          customer: true,
+          delivery: { include: { deliverer: true } }
+        }
+      }).then(fullOrder => {
+        if (fullOrder && fullOrder.customer && fullOrder.customer.email) {
+          sendDeliveryRecapEmail(fullOrder, fullOrder.customer.email, fullOrder.customer.name).catch(err => {
+            console.error("Erreur d'envoi d'email de récapitulatif de livraison (confirmDelivery):", err)
+          })
+        }
+      }).catch(err => {
+        console.error("Erreur récupération commande pour email (confirmDelivery):", err)
+      })
     } else {
       // Émettre un événement pour forcer la mise à jour (toujours en DELIVERING)
       notifyOrderStatusUpdate(orderId, OrderStatus.DELIVERING)

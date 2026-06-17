@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { User, Mail, Phone, Shield, Calendar, AlertCircle } from 'lucide-react'
+import { User, Mail, Phone, Shield, Calendar, AlertCircle, Camera, Check, X } from 'lucide-react'
 import { getProfile } from '../api/auth.api'
 import type { AuthUser } from '../api/auth.api'
 import { useAuth } from '../contexts/AuthContext'
+import { uploadImage } from '../api/uploads.api'
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
   ADMIN:     { label: 'Administrateur', color: 'var(--color-primary)' },
@@ -11,10 +12,18 @@ const ROLE_LABELS: Record<string, { label: string; color: string }> = {
 }
 
 const ProfilePage = () => {
-  const { user: authUser, logout, setAvailability } = useAuth()
+  const { user: authUser, logout, setAvailability, updateUserProfile } = useAuth()
   const [profile, setProfile] = useState<AuthUser & { createdAt?: string } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // Edit states
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -31,6 +40,44 @@ const ProfilePage = () => {
     }
     fetchProfile()
   }, [authUser])
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsUploading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const uploadRes = await uploadImage(file)
+      await updateUserProfile({ avatarUrl: uploadRes.url })
+      setProfile(prev => prev ? { ...prev, avatarUrl: uploadRes.url } : null)
+      setSuccess('Photo de profil mise à jour avec succès.')
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Erreur lors de l'upload de l'avatar.")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      setError('Le nom complet est obligatoire.')
+      return
+    }
+    setIsSaving(true)
+    setError('')
+    setSuccess('')
+    try {
+      await updateUserProfile({ name: editName, phone: editPhone || null })
+      setProfile(prev => prev ? { ...prev, name: editName, phone: editPhone || null } : null)
+      setSuccess('Profil mis à jour avec succès.')
+      setIsEditing(false)
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erreur lors de la mise à jour.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   if (isLoading) return <div className="loading-screen"><div className="loading-spinner"></div></div>
 
@@ -51,16 +98,75 @@ const ProfilePage = () => {
         </div>
       )}
 
+      {success && (
+        <div className="alert alert-success">
+          <Check size={16} /><span>{success}</span>
+        </div>
+      )}
+
       <div className="profile-layout">
         {/* Carte profil principale */}
-        <div className="profile-card">
-          <div className="profile-avatar">
-            <User size={40} />
+        <div className="profile-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div className="profile-avatar-container" style={{ position: 'relative', width: '88px', height: '88px', marginBottom: '16px' }}>
+            {profile?.avatarUrl ? (
+              <img src={profile.avatarUrl} alt="Avatar" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-primary)' }} />
+            ) : (
+              <div className="profile-avatar" style={{ width: '80px', height: '80px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
+                <User size={36} />
+              </div>
+            )}
+            <label className="avatar-upload-overlay" style={{
+              position: 'absolute', bottom: '4px', right: '4px',
+              background: 'var(--color-primary)', borderRadius: '50%',
+              width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', border: '2px solid var(--color-surface)', transition: 'all 0.2s', boxShadow: 'var(--shadow-sm)'
+            }} title="Changer d'avatar">
+              <Camera size={13} color="#fff" />
+              <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} disabled={isUploading} />
+            </label>
+            {isUploading && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span className="btn-spinner" style={{ width: '20px', height: '20px' }}></span>
+              </div>
+            )}
           </div>
-          <div className="profile-name">{profile?.name}</div>
-          <div className="profile-role-badge" style={{ background: roleInfo.color }}>
+          <div className="profile-name" style={{ fontSize: '1.2rem', fontWeight: '800', textAlign: 'center' }}>{profile?.name}</div>
+          <div className="profile-role-badge" style={{ background: roleInfo.color, marginTop: '8px' }}>
             <Shield size={13} /> {roleInfo.label}
           </div>
+
+          {isEditing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', marginTop: '20px', borderTop: '1px solid var(--color-border)', paddingTop: '20px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px' }}>Nom complet</label>
+                <input type="text" className="form-input" value={editName} onChange={e => setEditName(e.target.value)} disabled={isSaving} placeholder="Votre nom complet" />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '11px' }}>Téléphone</label>
+                <input type="text" className="form-input" value={editPhone} onChange={e => setEditPhone(e.target.value)} disabled={isSaving} placeholder="Votre numéro de téléphone" />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button className="btn btn-primary btn-sm btn-full" onClick={handleSaveProfile} disabled={isSaving} style={{ display: 'flex', gap: '4px', padding: '8px 12px' }}>
+                  <Check size={14} /> Enregistrer
+                </button>
+                <button className="btn btn-secondary btn-sm btn-full" onClick={() => setIsEditing(false)} disabled={isSaving} style={{ display: 'flex', gap: '4px', padding: '8px 12px' }}>
+                  <X size={14} /> Annuler
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: '20px', width: '100%', textAlign: 'center' }}>
+              <button className="btn btn-secondary btn-sm btn-full" onClick={() => {
+                setEditName(profile?.name || '')
+                setEditPhone(profile?.phone || '')
+                setIsEditing(true)
+                setError('')
+                setSuccess('')
+              }}>
+                Modifier mes infos
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Infos détaillées */}
