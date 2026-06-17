@@ -41,3 +41,33 @@ export const getItems = async (): Promise<Item[]> => {
   const res = await client.get<Item[]>('/menu/items')
   return res.data
 }
+
+export const createCategory = async (data: { name: string; restaurantId: string; displayOrder?: number }): Promise<Category> => {
+  const res = await client.post<Category>('/menu/categories', data)
+  return res.data
+}
+
+export const deleteCategory = async (id: string): Promise<void> => {
+  await client.delete(`/menu/categories/${id}`)
+}
+
+export const createItem = async (data: {
+  name: string
+  description?: string
+  price: number
+  imageUrl?: string
+  isAvailable?: boolean
+  categoryId: string
+}): Promise<Item> => {
+  const res = await client.post<Item>('/menu/items', data)
+  return res.data
+}
+
+export const updateItem = async (id: string, data: Partial<Item>): Promise<Item> => {
+  const res = await client.put<Item>(`/menu/items/${id}`, data)
+  return res.data
+}
+
+export const deleteItem = async (id: string): Promise<void> => {
+  await client.delete(`/menu/items/${id}`)
+}

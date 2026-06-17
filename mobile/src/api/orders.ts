@@ -37,6 +37,7 @@ export interface Delivery {
   destLng?: number | null
   estimatedTime?: number | null
   createdAt?: string
+  order?: Order | null
 }
 
 export interface Order {
@@ -48,6 +49,7 @@ export interface Order {
   createdAt: string
   updatedAt: string
   customerId: string
+  customer?: { id: string; name: string; phone?: string | null } | null
   items: OrderItemDetail[]
   delivery?: Delivery | null
 }
@@ -120,4 +122,33 @@ export const updateDelivererLocation = async (
   const res = await client.patch<Delivery>(`/orders/deliveries/${deliveryId}/location`, { lat, lng })
   return res.data
 }
+
+export const cancelDelivery = async (deliveryId: string): Promise<Delivery> => {
+  const res = await client.patch<Delivery>(`/orders/deliveries/${deliveryId}/cancel`)
+  return res.data
+}
+
+export interface Message {
+  id: string
+  orderId: string
+  senderId: string
+  content: string
+  createdAt: string
+  sender: {
+    id: string
+    name: string
+    role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
+  }
+}
+
+export const getOrderMessages = async (orderId: string): Promise<Message[]> => {
+  const res = await client.get<Message[]>(`/orders/${orderId}/messages`)
+  return res.data
+}
+
+export const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<Order> => {
+  const res = await client.patch<Order>(`/orders/${orderId}/status`, { status })
+  return res.data
+}
+
 

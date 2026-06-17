@@ -5,10 +5,10 @@ import {
   View,
   TouchableOpacity,
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   Alert,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRoute, useNavigation } from '@react-navigation/native'
 import { useAuth } from '../contexts/AuthContext'
 import { getMyOrders, updateDelivererLocation, Order } from '../api/orders'
@@ -98,7 +98,7 @@ export default function OrderTrackingScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#6366f1" />
+          <ActivityIndicator size="large" color="#f97316" />
         </View>
       </SafeAreaView>
     )
@@ -215,26 +215,26 @@ export default function OrderTrackingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0d0f14',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
   backArrow: {
-    color: '#6366f1',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#f97316',
+    fontSize: 15,
+    fontWeight: '800',
   },
   headerTitle: {
-    color: '#ffffff',
+    color: '#f1f5f9',
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
   scrollContent: {
     padding: 20,
@@ -251,27 +251,27 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#f97316',
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   backButtonText: {
     color: '#ffffff',
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   card: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#151821',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   orderId: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#f1f5f9',
+    fontSize: 17,
+    fontWeight: '900',
     marginBottom: 6,
   },
   restaurantName: {
@@ -280,22 +280,22 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   totalText: {
-    color: '#6366f1',
+    color: '#f97316',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   progressContainer: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#151821',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   sectionTitle: {
-    color: '#ffffff',
+    color: '#f1f5f9',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginBottom: 20,
   },
   timeline: {
@@ -312,13 +312,16 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#334155',
+    backgroundColor: '#1c2030',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   timelineDotActive: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#f97316',
+    borderColor: '#f97316',
   },
   timelineDotInner: {
     width: 8,
@@ -328,13 +331,13 @@ const styles = StyleSheet.create({
   },
   timelineLabel: {
     color: '#64748b',
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 8,
     textAlign: 'center',
   },
   timelineLabelActive: {
-    color: '#ffffff',
-    fontWeight: 'bold',
+    color: '#f97316',
+    fontWeight: '800',
   },
   timelineLine: {
     position: 'absolute',
@@ -342,23 +345,23 @@ const styles = StyleSheet.create({
     left: '50%',
     width: '100%',
     height: 2,
-    backgroundColor: '#334155',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     zIndex: 1,
   },
   timelineLineActive: {
-    backgroundColor: '#6366f1',
+    backgroundColor: '#f97316',
   },
   mapContainer: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#151821',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   radarBackground: {
     height: 180,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0d0f14',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -370,7 +373,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 1,
-    borderColor: '#6366f122',
+    borderColor: 'rgba(249,115,22,0.2)',
     position: 'absolute',
   },
   radarCircle2: {
@@ -378,7 +381,7 @@ const styles = StyleSheet.create({
     height: 140,
     borderRadius: 70,
     borderWidth: 1,
-    borderColor: '#6366f115',
+    borderColor: 'rgba(249,115,22,0.12)',
     position: 'absolute',
   },
   radarCircle3: {
@@ -386,7 +389,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 100,
     borderWidth: 1,
-    borderColor: '#6366f108',
+    borderColor: 'rgba(249,115,22,0.06)',
     position: 'absolute',
   },
   coordinatesOverlay: {
@@ -401,22 +404,22 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   etaText: {
-    color: '#10b981',
+    color: '#22c55e',
     fontSize: 13,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   controlPanel: {
-    backgroundColor: '#1e1b4b',
-    borderColor: '#4338ca',
+    backgroundColor: 'rgba(249,115,22,0.06)',
+    borderColor: 'rgba(249,115,22,0.25)',
     borderWidth: 1,
     borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   controlTitle: {
-    color: '#c084fc',
+    color: '#f97316',
     fontSize: 15,
-    fontWeight: 'bold',
+    fontWeight: '800',
     marginBottom: 6,
   },
   controlDesc: {
@@ -425,16 +428,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   simButton: {
-    backgroundColor: '#6366f1',
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: '#f97316',
+    paddingVertical: 13,
+    borderRadius: 12,
     alignItems: 'center',
   },
   simButtonActive: {
-    backgroundColor: '#ef4444',
+    backgroundColor: 'rgba(239,68,68,0.8)',
   },
   simButtonText: {
     color: '#ffffff',
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
 })

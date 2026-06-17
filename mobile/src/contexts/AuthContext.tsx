@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { login as apiLogin, register as apiRegister, getMe } from '../api/auth'
+import { login as apiLogin, register as apiRegister, getMe, updateAvailability as apiUpdateAvailability } from '../api/auth'
 import type { AuthUser, LoginPayload, RegisterPayload } from '../api/auth'
 
 interface AuthContextType {
@@ -13,6 +13,7 @@ interface AuthContextType {
   login: (data: LoginPayload) => Promise<void>
   register: (data: RegisterPayload) => Promise<void>
   logout: () => Promise<void>
+  setAvailability: (isAvailable: boolean) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType)
@@ -63,6 +64,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null)
   }
 
+  const setAvailability = async (isAvailable: boolean) => {
+    const updated = await apiUpdateAvailability(isAvailable)
+    setUser(updated)
+  }
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -74,6 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login,
       register,
       logout,
+      setAvailability,
     }}>
       {children}
     </AuthContext.Provider>

@@ -19,6 +19,7 @@ export interface AuthUser {
   role: 'CLIENT' | 'DELIVERER' | 'ADMIN'
   phone?: string | null
   isAvailable?: boolean
+  createdAt?: string
 }
 
 export interface AuthResponse {
@@ -39,4 +40,13 @@ export const register = async (data: RegisterPayload): Promise<AuthResponse> => 
 export const getMe = async (): Promise<AuthUser> => {
   const res = await client.get<AuthUser>('/auth/me')
   return res.data
+}
+
+export const updateAvailability = async (isAvailable: boolean): Promise<AuthUser> => {
+  const res = await client.patch<AuthUser>('/auth/availability', { isAvailable })
+  return res.data
+}
+
+export const forgotPassword = async (email: string): Promise<void> => {
+  await client.post('/auth/forgot-password', { email })
 }

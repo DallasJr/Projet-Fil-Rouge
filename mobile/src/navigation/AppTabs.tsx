@@ -7,19 +7,21 @@ import MenuScreen from '../screens/MenuScreen'
 import OrderHistoryScreen from '../screens/OrderHistoryScreen'
 import DelivererScreen from '../screens/DelivererScreen'
 import ProfileScreen from '../screens/ProfileScreen'
+import AdminPortalScreen from '../screens/admin/AdminPortalScreen'
 
 export type AppTabsParamList = {
   Menu: undefined
   Orders: undefined
   Deliveries: undefined
   Profile: undefined
+  AdminTab: undefined
 }
 
 const Tab = createBottomTabNavigator<AppTabsParamList>()
 
 const TabIcon = ({ label, focused }: { label: string; focused: boolean }) => (
   <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>
-    {label === 'Menu' ? '🍽️' : label === 'Orders' ? '📦' : label === 'Deliveries' ? '🚴' : '👤'}
+    {label === 'Menu' ? '🍽️' : label === 'Orders' ? '📦' : label === 'Deliveries' ? '🚴' : label === 'Profile' ? '👤' : '🛠️'}
   </Text>
 )
 
@@ -32,13 +34,13 @@ export default function AppTabs() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1e293b',
-          borderTopColor: '#334155',
+          backgroundColor: '#151821',
+          borderTopColor: 'rgba(255, 255, 255, 0.07)',
           paddingBottom: Platform.OS === 'ios' ? 20 : 8,
           paddingTop: 8,
           height: Platform.OS === 'ios' ? 88 : 65,
         },
-        tabBarActiveTintColor: '#6366f1',
+        tabBarActiveTintColor: '#f97316',
         tabBarInactiveTintColor: '#64748b',
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
       }}
@@ -69,6 +71,16 @@ export default function AppTabs() {
           }}
         />
       )}
+      {isAdmin && (
+        <Tab.Screen
+          name="AdminTab"
+          component={AdminPortalScreen}
+          options={{
+            tabBarLabel: 'Admin',
+            tabBarIcon: ({ focused }) => <TabIcon label="AdminTab" focused={focused} />,
+          }}
+        />
+      )}
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
@@ -80,3 +92,4 @@ export default function AppTabs() {
     </Tab.Navigator>
   )
 }
+
