@@ -13,10 +13,16 @@ export interface AuthenticatedRequest extends Request {
 
 // Middleware de vérification du Token JWT (Authentification)
 export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  let token: string | undefined = undefined
   const authHeader = req.headers.authorization
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1]
+    token = authHeader.split(' ')[1]
+  } else if (req.query && req.query.token) {
+    token = req.query.token as string
+  }
+
+  if (token) {
     const secret = ((process.env['JWT_SECRET'] as string) || 'super-secret-key-change-this-in-production-12345!') as Secret
 
     try {
