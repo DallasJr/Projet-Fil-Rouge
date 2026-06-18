@@ -8,7 +8,7 @@ const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  console.log('🚀 Seeding the 3 presentation plates...')
+  console.log('🚀 Seeding 13 plates in total (3 original + 10 new)...')
 
   // Get or create restaurant
   let restaurant = await prisma.restaurant.findFirst()
@@ -24,9 +24,12 @@ async function main() {
 
   // Ensure categories exist
   const categoriesToEnsure = [
-    { name: 'Burgers', displayOrder: 4 },
-    { name: 'Pizzas', displayOrder: 3 },
+    { name: 'Entrées', displayOrder: 1 },
     { name: 'Plats principaux', displayOrder: 2 },
+    { name: 'Pizzas', displayOrder: 3 },
+    { name: 'Burgers', displayOrder: 4 },
+    { name: 'Desserts', displayOrder: 5 },
+    { name: 'Boissons', displayOrder: 6 },
   ]
 
   const categoriesMap: { [key: string]: string } = {}
@@ -46,13 +49,14 @@ async function main() {
     categoriesMap[cat.name] = category.id
   }
 
-  // Dishes definition
+  // Dishes definition (3 original + 10 new)
   const dishes = [
+    // Original 3
     {
       name: 'Burger Gourmet',
       price: 14.90,
       description: 'Double steak Black Angus, cheddar affiné, oignons caramélisés & notre sauce secrète maison.',
-      imageUrl: 'http://10.92.6.69:3000/public/burger.png', // Fallback or public assets
+      imageUrl: '/burger.png',
       categoryName: 'Burgers',
       isGlutenFree: false,
       isVegetarian: false,
@@ -62,7 +66,7 @@ async function main() {
       name: 'Pizza Truffe & Prosciutto',
       price: 16.50,
       description: 'Base crème truffe blanche, mozzarella di bufala, prosciutto crudo & roquette fraîche.',
-      imageUrl: 'http://10.92.6.69:3000/public/pizza.png',
+      imageUrl: '/pizza.png',
       categoryName: 'Pizzas',
       isGlutenFree: false,
       isVegetarian: false,
@@ -72,10 +76,112 @@ async function main() {
       name: 'Poke Bowl Saumon Avocat',
       price: 13.90,
       description: 'Saumon mariné premium, avocat crémeux, riz vinaigré, mangue fraîche & sésame grillé.',
-      imageUrl: 'http://10.92.6.69:3000/public/poke.png',
+      imageUrl: '/poke.png',
       categoryName: 'Plats principaux',
       isGlutenFree: true,
       isVegetarian: false,
+      isSpicy: false,
+    },
+
+    // 10 new dishes
+    {
+      name: 'Burrata Crémeuse',
+      price: 9.50,
+      description: 'Mozzarella di bufala au cœur crémeux, tomates cerises confites, pesto maison et pignons grillés.',
+      imageUrl: '',
+      categoryName: 'Entrées',
+      isGlutenFree: true,
+      isVegetarian: true,
+      isSpicy: false,
+    },
+    {
+      name: 'Tapas de Patatas Bravas',
+      price: 6.80,
+      description: 'Pommes de terre croustillantes avec sauce tomate piquante espagnole maison et aïoli.',
+      imageUrl: '',
+      categoryName: 'Entrées',
+      isGlutenFree: true,
+      isVegetarian: true,
+      isSpicy: true,
+    },
+    {
+      name: 'Crispy Chicken Burger',
+      price: 13.90,
+      description: 'Poulet croustillant pané, cheddar fondu, salade iceberg, tomates et sauce mayonnaise spicy maison.',
+      imageUrl: '',
+      categoryName: 'Burgers',
+      isGlutenFree: false,
+      isVegetarian: false,
+      isSpicy: true,
+    },
+    {
+      name: 'Green Veggie Burger',
+      price: 12.90,
+      description: 'Galette de quinoa et légumes, avocat frais, oignons rouges, pousses d\'épinards et sauce yaourt-fines herbes.',
+      imageUrl: '',
+      categoryName: 'Burgers',
+      isGlutenFree: false,
+      isVegetarian: true,
+      isSpicy: false,
+    },
+    {
+      name: 'Pizza Reine Classique',
+      price: 12.50,
+      description: 'Sauce tomate maison, mozzarella fondue, jambon blanc aux herbes et champignons frais de Paris.',
+      imageUrl: '',
+      categoryName: 'Pizzas',
+      isGlutenFree: false,
+      isVegetarian: false,
+      isSpicy: false,
+    },
+    {
+      name: 'Pizza Diavola',
+      price: 14.00,
+      description: 'Sauce tomate, mozzarella, salami piquant italien, n\'duja calabraise et piments frais.',
+      imageUrl: '',
+      categoryName: 'Pizzas',
+      isGlutenFree: false,
+      isVegetarian: false,
+      isSpicy: true,
+    },
+    {
+      name: 'Pavé de Saumon Rôti',
+      price: 18.50,
+      description: 'Saumon sauvage rôti, écrasé de pommes de terre à l\'huile d\'olive, légumes de saison glacés au miel.',
+      imageUrl: '',
+      categoryName: 'Plats principaux',
+      isGlutenFree: true,
+      isVegetarian: false,
+      isSpicy: false,
+    },
+    {
+      name: 'Tiramisu Café Maison',
+      price: 7.00,
+      description: 'Recette traditionnelle italienne au café, mascarpone onctueux et biscuits cuillères imbibés.',
+      imageUrl: '',
+      categoryName: 'Desserts',
+      isGlutenFree: false,
+      isVegetarian: true,
+      isSpicy: false,
+    },
+    {
+      name: 'Fondant Chocolat Intense',
+      price: 6.50,
+      description: 'Cœur coulant au chocolat noir 70%, servi chaud avec une boule de glace vanille Bourbon.',
+      imageUrl: '',
+      categoryName: 'Desserts',
+      isGlutenFree: false,
+      isVegetarian: true,
+      isSpicy: false,
+    },
+    {
+      name: 'Thé Glacé Pêche Maison',
+      price: 4.50,
+      description: 'Thé noir infusé à froid, nectar de pêche jaune locale, menthe fraîche et une touche de citron pressé.',
+      imageUrl: '',
+      categoryName: 'Boissons',
+      isGlutenFree: true,
+      isVegetarian: true,
       isSpicy: false,
     }
   ]
@@ -85,12 +191,10 @@ async function main() {
     if (!categoryId) {
       throw new Error(`Category ${dish.categoryName} was not found or created.`)
     }
-    // Try to find if item already exists by name
+
     const existingItem = await prisma.item.findFirst({
       where: { name: dish.name, categoryId }
     })
-
-    const imageUrl = dish.name === 'Burger Gourmet' ? '/burger.png' : dish.name === 'Pizza Truffe & Prosciutto' ? '/pizza.png' : '/poke.png'
 
     if (existingItem) {
       await prisma.item.update({
@@ -98,7 +202,7 @@ async function main() {
         data: {
           price: dish.price,
           description: dish.description,
-          imageUrl,
+          imageUrl: dish.imageUrl || null,
           isGlutenFree: dish.isGlutenFree,
           isVegetarian: dish.isVegetarian,
           isSpicy: dish.isSpicy,
@@ -111,7 +215,7 @@ async function main() {
           name: dish.name,
           price: dish.price,
           description: dish.description,
-          imageUrl,
+          imageUrl: dish.imageUrl || null,
           categoryId,
           isGlutenFree: dish.isGlutenFree,
           isVegetarian: dish.isVegetarian,
@@ -122,7 +226,7 @@ async function main() {
     }
   }
 
-  console.log('🎉 3 presentation plates seeded successfully!')
+  console.log('🎉 All 13 plates seeded successfully!')
 }
 
 main()
