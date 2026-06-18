@@ -69,3 +69,39 @@ Si des nouvelles migrations sont disponibles, appliquez-les :
 cd ./backend/
 npx prisma migrate deploy
 ```
+
+---
+
+## Tests
+
+### Backend (Tests d'intégration)
+
+Les tests d'intégration du backend sont configurés avec **Vitest** et **Supertest** pour valider la restriction des routes d'administration aux rôles autorisés (ADMIN). Le client Prisma et les connexions PostgreSQL sont mockés afin que les tests s'exécutent de façon isolée et rapide (sans altérer la base de données).
+
+Pour exécuter les tests d'intégration du backend :
+```bash
+cd ./backend/
+npm run test
+```
+
+### Frontend (Tests E2E)
+
+Les tests d'interface de bout en bout (E2E) sont configurés avec **Playwright**. Ils simulent le parcours utilisateur complet : Inscription d'un nouveau compte ➔ Déconnexion ➔ Connexion ➔ Ajout d'un plat au panier ➔ Validation de commande (paiement espèces) ➔ Connexion Administrateur ➔ Vérification de la présence de la commande sur le dashboard admin en temps réel.
+
+Pour exécuter les tests E2E :
+1. Lancez le serveur backend de développement :
+   ```bash
+   cd ./backend/
+   npm run dev
+   ```
+2. Initialisez/vérifiez le compte administrateur E2E de test dans la base de données :
+   ```bash
+   cd ./backend/
+   npx ts-node scripts/ensure-e2e-admin.ts
+   ```
+3. Exécutez Playwright (le serveur de développement frontend est démarré automatiquement par Playwright) :
+   ```bash
+   cd ./frontend/
+   npm run test:e2e
+   ```
+
