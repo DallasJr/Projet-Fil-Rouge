@@ -50,3 +50,23 @@ export const updateAvailability = async (isAvailable: boolean): Promise<AuthUser
 export const forgotPassword = async (email: string): Promise<void> => {
   await client.post('/auth/forgot-password', { email })
 }
+
+export interface UpdateProfilePayload {
+  name?: string
+  phone?: string
+  avatarUrl?: string
+}
+
+export const updateProfile = async (data: UpdateProfilePayload): Promise<AuthUser> => {
+  const res = await client.patch<AuthUser>('/auth/profile', data)
+  return res.data
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string
+  newPassword: string
+}
+
+export const changePassword = async (data: ChangePasswordPayload): Promise<void> => {
+  await client.patch('/auth/change-password', data)
+}

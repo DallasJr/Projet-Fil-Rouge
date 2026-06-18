@@ -61,8 +61,11 @@ export default function MenuScreen() {
 
   // Filters state
   const [filterVegetarian, setFilterVegetarian] = useState(false)
+  const [filterGlutenFree, setFilterGlutenFree] = useState(false)
+  const [filterSpicy, setFilterSpicy] = useState(false)
   const [filterPriceMax, setFilterPriceMax] = useState('')
   const [filterFavoritesOnly, setFilterFavoritesOnly] = useState(false)
+  const [excludedAllergens, setExcludedAllergens] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
 
   // Notifications
@@ -176,10 +179,12 @@ export default function MenuScreen() {
   const filteredItems = items.filter(item => {
     const matchCat = selectedCategory === 'all' || item.categoryId === selectedCategory
     const matchSearch = item.name.toLowerCase().includes(search.toLowerCase())
-    
+
     // Parse description for rich metadata
     const rich = parseDescription(item.description)
     const matchVeg = !filterVegetarian || !!rich.isVeg
+    const matchGlutenFree = !filterGlutenFree || !!(item as any).isGlutenFree
+    const matchSpicy = !filterSpicy || !!(rich.spice && rich.spice > 0)
 
     // Price Max filter
     const maxPrice = parseFloat(filterPriceMax)
@@ -188,7 +193,12 @@ export default function MenuScreen() {
     // Favorites filter
     const matchFav = !filterFavoritesOnly || favorites.includes(item.id)
 
-    return matchCat && matchSearch && matchVeg && matchPrice && matchFav
+    // Allergen exclusion filter
+    const itemAllergens = (rich.allergens || '').toLowerCase()
+    const matchAllergens = excludedAllergens.length === 0 ||
+      !excludedAllergens.some(a => itemAllergens.includes(a.toLowerCase()))
+
+    return matchCat && matchSearch && matchVeg && matchGlutenFree && matchSpicy && matchPrice && matchFav && matchAllergens
   })
 
   const addToCart = (item: Item, note?: string) => {
@@ -246,10 +256,26 @@ export default function MenuScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f97316" />
-        <Text style={styles.loadingText}>Chargement du menu...</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>🍽️ Menu</Text>
+            <Text style={styles.headerSub}>Chargement...</Text>
+          </View>
+        </View>
+        <View style={{ padding: 16, gap: 12 }}>
+          {[1, 2, 3, 4].map(i => (
+            <View key={i} style={styles.skeletonCard}>
+              <View style={styles.skeletonImg} />
+              <View style={{ flex: 1, gap: 8 }}>
+                <View style={[styles.skeletonLine, { width: '60%' }]} />
+                <View style={[styles.skeletonLine, { width: '40%', height: 10 }]} />
+                <View style={[styles.skeletonLine, { width: '30%', height: 10 }]} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </SafeAreaView>
     )
   }
 
@@ -289,8 +315,11 @@ export default function MenuScreen() {
         const activeFiltersCount = [
           search.trim() !== '',
           filterVegetarian,
+          filterGlutenFree,
+          filterSpicy,
           filterFavoritesOnly,
-          filterPriceMax.trim() !== ''
+          filterPriceMax.trim() !== '',
+          excludedAllergens.length > 0,
         ].filter(Boolean).length
 
         return (
@@ -321,15 +350,37 @@ export default function MenuScreen() {
                   />
                 </View>
 
-                {/* Switches */}
+                {/* Switches row 1 */}
                 <View style={styles.filterSwitchesRow}>
                   <View style={styles.filterSwitchContainer}>
                     <Text style={styles.filterSwitchLabel}>🌿 Végé</Text>
                     <Switch
                       value={filterVegetarian}
                       onValueChange={setFilterVegetarian}
-                      trackColor={{ false: '#334155', true: '#f97316' }}
+                      trackColor={{ false: '#334155', true: '#22c55e' }}
                       thumbColor={filterVegetarian ? '#fff' : '#94a3b8'}
+                    />
+                  </View>
+                  <View style={styles.filterSwitchContainer}>
+                    <Text style={styles.filterSwitchLabel}>🌾 Sans Gluten</Text>
+                    <Switch
+                      value={filterGlutenFree}
+                      onValueChange={setFilterGlutenFree}
+                      trackColor={{ false: '#334155', true: '#eab308' }}
+                      thumbColor={filterGlutenFree ? '#fff' : '#94a3b8'}
+                    />
+                  </View>
+                </View>
+
+                {/* Switches row 2 */}
+                <View style={styles.filterSwitchesRow}>
+                  <View style={styles.filterSwitchContainer}>
+                    <Text style={styles.filterSwitchLabel}>🌶️ Épicé</Text>
+                    <Switch
+                      value={filterSpicy}
+                      onValueChange={setFilterSpicy}
+                      trackColor={{ false: '#334155', true: '#ef4444' }}
+                      thumbColor={filterSpicy ? '#fff' : '#94a3b8'}
                     />
                   </View>
                   <View style={styles.filterSwitchContainer}>
@@ -355,16 +406,40 @@ export default function MenuScreen() {
                   />
                 </View>
 
-                <TouchableOpacity 
+                {/* Allergen exclusion */}
+                <Text style={styles.filterSectionLabel}>Exclure les allergènes</Text>
+                <View style={styles.allergenChipsRow}>
+                  {['Gluten', 'Lactose', 'Arachides', 'Oeufs', 'Soja', 'Fruits à coque'].map(allergen => {
+                    const isExcluded = excludedAllergens.includes(allergen)
+                    return (
+                      <TouchableOpacity
+                        key={allergen}
+                        style={[styles.allergenChip, isExcluded && styles.allergenChipActive]}
+                        onPress={() => setExcludedAllergens(prev =>
+                          isExcluded ? prev.filter(a => a !== allergen) : [...prev, allergen]
+                        )}
+                      >
+                        <Text style={[styles.allergenChipText, isExcluded && styles.allergenChipTextActive]}>
+                          {isExcluded ? '✗ ' : ''}{allergen}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+
+                <TouchableOpacity
                   style={styles.resetFiltersBtn}
                   onPress={() => {
                     setSearch('')
                     setFilterVegetarian(false)
+                    setFilterGlutenFree(false)
+                    setFilterSpicy(false)
                     setFilterFavoritesOnly(false)
                     setFilterPriceMax('')
+                    setExcludedAllergens([])
                   }}
                 >
-                  <Text style={styles.resetFiltersBtnText}>Réinitialiser</Text>
+                  <Text style={styles.resetFiltersBtnText}>Réinitialiser tous les filtres</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -894,6 +969,62 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 12,
     fontWeight: '700',
+  },
+  filterSectionLabel: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  allergenChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  allergenChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  allergenChipActive: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: 'rgba(239,68,68,0.35)',
+  },
+  allergenChipText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  allergenChipTextActive: {
+    color: '#ef4444',
+  },
+  skeletonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#151821',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  skeletonImg: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: '#1e2333',
+  },
+  skeletonLine: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#1e2333',
   },
   allergenTagText: {
     color: '#e11d48',

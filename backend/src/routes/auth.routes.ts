@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { register, login, getProfile, updateAvailability, forgotPassword, resetPassword, updateProfile } from '../controllers/auth.controller'
+import { register, login, getProfile, updateAvailability, forgotPassword, resetPassword, updateProfile, changePassword } from '../controllers/auth.controller'
 import { authenticateJWT } from '../middlewares/auth.middleware'
 import { validateBody } from '../middlewares/validation.middleware'
 import { loginSchema, registerSchema, forgotPasswordSchema, resetPasswordSchema, updateProfileSchema } from '../schemas/validation.schemas'
@@ -24,6 +24,9 @@ router.get('/me', authenticateJWT, getProfile)
 
 // Route Mise à jour profil : PATCH /api/auth/profile
 router.patch('/profile', authenticateJWT, validateBody(updateProfileSchema), updateProfile)
+
+// Route Changement mot de passe : PATCH /api/auth/change-password
+router.patch('/change-password', authenticateJWT, changePassword)
 
 // Route Disponibilité livreur : PATCH /api/auth/availability
 router.patch('/availability', authenticateJWT, updateAvailability)
