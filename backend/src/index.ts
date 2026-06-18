@@ -56,8 +56,10 @@ app.get('/health', async (req, res) => {
 // Initialiser le serveur Socket.io
 initSocket(server)
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
-})
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`)
+  })
+}
 
-export { prisma }
+export { prisma, app }
