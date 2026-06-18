@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   ShoppingCart, Plus, Minus, Trash2, Tag, Search,
-  AlertCircle, MapPin, CreditCard, ChevronDown, Heart,
+  AlertCircle, MapPin, CreditCard, Heart,
   Grid3X3, List, Truck, UtensilsCrossed, Star, Clock,
   Flame, X, Check, Zap, Filter
 } from 'lucide-react'
@@ -460,26 +460,18 @@ const MenuPage = () => {
           >
             <Filter size={15} />
             <span>Filtres</span>
+            {(filterMaxPrice !== 50 || excludedAllergens.length > 0 || filterVegOnly || filterGlutenFree || filterSpicy) && (
+              <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '10px', background: showFiltersPanel ? '#fff' : 'var(--color-primary)', color: showFiltersPanel ? 'var(--color-primary)' : '#fff', fontWeight: '700', marginLeft: '4px' }}>
+                {[filterMaxPrice !== 50 && '1', excludedAllergens.length > 0 && '1', filterVegOnly && '1', filterGlutenFree && '1', filterSpicy && '1'].filter(Boolean).length}
+              </span>
+            )}
           </button>
         </div>
 
-        {/* ── Collapsible Filters Panel (Pattern uniforme) ── */}
-        <div className="filter-panel" style={{ width: '100%', maxWidth: '600px', margin: '12px auto 0' }}>
-          <div className="filter-panel-header" onClick={() => setShowFiltersPanel(v => !v)}>
-            <span className="filter-panel-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Filter size={13} style={{ color: 'var(--color-primary)' }} /> Filtres avancés
-              {(filterMaxPrice !== 50 || excludedAllergens.length > 0 || filterVegOnly || filterGlutenFree || filterSpicy) && (
-                <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '10px', background: 'var(--color-primary)', color: '#fff', fontWeight: '700', marginLeft: '6px' }}>
-                  {[filterMaxPrice !== 50 && '1', excludedAllergens.length > 0 && '1', filterVegOnly && '1', filterGlutenFree && '1', filterSpicy && '1'].filter(Boolean).length}
-                </span>
-              )}
-            </span>
-            <span className={`filter-panel-toggle ${showFiltersPanel ? 'open' : ''}`} style={{ display: 'flex', alignItems: 'center' }}>
-              {showFiltersPanel ? 'Masquer' : 'Afficher'} <ChevronDown size={13} style={{ marginLeft: '4px' }} />
-            </span>
-          </div>
-          {showFiltersPanel && (
-            <div className="filter-panel-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'var(--color-surface-2)', borderRadius: '0 0 12px 12px', borderTop: '1px solid var(--color-border)' }}>
+        {/* ── Filters Panel ── */}
+        {showFiltersPanel && (
+          <div className="filter-panel" style={{ width: '100%', maxWidth: '600px', margin: '12px auto 0' }}>
+            <div className="filter-panel-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'var(--color-surface-2)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ margin: 0, flex: '1', minWidth: '180px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label className="form-label" style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--color-text-dim)' }}>Prix max : {filterMaxPrice} €</label>
@@ -558,8 +550,8 @@ const MenuPage = () => {
                 </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Alerts */}
