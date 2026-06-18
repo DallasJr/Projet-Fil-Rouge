@@ -3317,5 +3317,39 @@ input::-ms-clear {
   border-radius: 3px;
 }
 
+/* ===================================
+   Skeletons & Premium UI Additions
+   =================================== */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface-2) 25%, var(--color-surface-3) 50%, var(--color-surface-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite ease-in-out;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Bounce animation for empty states */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.avatar-upload-overlay:hover {
+  background-color: var(--color-primary-hover) !important;
+  transform: scale(1.1) !important;
+}
+
+/* Dietary badge items */
+.badge-veg, .badge-gf, .badge-spicy {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
 
 

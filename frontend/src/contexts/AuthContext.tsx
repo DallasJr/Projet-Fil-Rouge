@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { login as apiLogin, register as apiRegister, updateAvailability as apiUpdateAvailability } from '../api/auth.api'
+import { login as apiLogin, register as apiRegister, updateAvailability as apiUpdateAvailability, updateProfile as apiUpdateProfile } from '../api/auth.api'
 import type { LoginPayload, RegisterPayload, AuthUser } from '../api/auth.api'
 
 interface AuthContextType {
@@ -15,6 +15,7 @@ interface AuthContextType {
   register: (data: RegisterPayload) => Promise<void>
   logout: () => void
   setAvailability: (isAvailable: boolean) => Promise<void>
+  updateUserProfile: (data: { name?: string; phone?: string | null; avatarUrl?: string | null }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -78,6 +79,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(newUser)
   }
 
+  const updateUserProfile = async (data: { name?: string; phone?: string | null; avatarUrl?: string | null }) => {
+    if (!user) return
+    const updated = await apiUpdateProfile(data)
+    const newUser = { ...user, ...updated }
+    localStorage.setItem('user', JSON.stringify(newUser))
+    setUser(newUser)
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -92,6 +101,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         register,
         logout,
         setAvailability,
+        updateUserProfile,
       }}
     >
       {children}

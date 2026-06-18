@@ -34,6 +34,6 @@ const handleImageUpload = (req: AuthenticatedRequest, res: Response, next: NextF
   })
 }
 
-router.post('/images', authenticateJWT, authorizeRoles(Role.ADMIN), handleImageUpload, uploadImage)
+router.post('/images', authenticateJWT, handleImageUpload, uploadImage)
 
 export default router

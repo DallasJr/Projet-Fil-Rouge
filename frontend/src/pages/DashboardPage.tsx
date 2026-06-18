@@ -684,9 +684,35 @@ const DashboardPage = () => {
       )}
 
       {isLoading ? (
-        <div className="loading-screen"><div className="loading-spinner"></div></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', padding: '10px 0' }}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="skeleton" style={{ height: '52px', width: '100%', borderRadius: '8px' }}></div>
+          ))}
+        </div>
       ) : filteredOrders.length === 0 ? (
-        <div className="empty-state"><p>Aucune commande dans cette catégorie.</p></div>
+        <div className="empty-state" style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-xl)',
+          padding: '4rem 2rem',
+          textAlign: 'center',
+          boxShadow: 'var(--shadow-md)',
+          maxWidth: '500px',
+          margin: '2rem auto',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div className="empty-state-icon" style={{ fontSize: '3rem', animation: 'bounce 2s infinite' }}>📋</div>
+          <h2 style={{ fontSize: '1.4rem', fontWeight: '800' }}>Aucune commande</h2>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', maxWidth: '360px', margin: '0 auto 8px' }}>
+            Aucune commande ne correspond aux filtres de statut ou de recherche actuels.
+          </p>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setSearchTerm(''); setFilterStatus('ALL') }}>
+            Réinitialiser les filtres
+          </button>
+        </div>
       ) : (
         <div className="orders-table-wrapper">
           <table className="orders-table">

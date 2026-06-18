@@ -15,6 +15,9 @@ export interface Item {
   price: number
   imageUrl: string | null
   isAvailable: boolean
+  isVegetarian?: boolean
+  isGlutenFree?: boolean
+  isSpicy?: boolean
   categoryId: string
   category?: Category
 }
