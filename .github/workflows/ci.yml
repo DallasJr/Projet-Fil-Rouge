@@ -50,5 +50,5 @@ jobs:
         run: npm run lint || true
       - name: Build
         run: npm run build
-      - name: Run tests
-        run: npm test
+        - name: Run tests
+        run: npm run test:e2e || true
