@@ -128,3 +128,7 @@ todo0.md
 
 # Scripts de setup one-shot (contiennent des imports de DB)
 backend/scripts/*.js
+
+# Fichiers de documentation générés
+web.md
+

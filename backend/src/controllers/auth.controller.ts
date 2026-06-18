@@ -313,3 +313,45 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(500).json({ error: 'Une erreur interne est survenue lors de la mise à jour du profil.' })
   }
 }
+
+// Changer le mot de passe (utilisateur connecté)
+export const changePassword = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non autorisé.' })
+    }
+
+    const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Mot de passe actuel et nouveau mot de passe requis.' })
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } })
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé.' })
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password)
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Mot de passe actuel incorrect.' })
+    }
+
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(newPassword, salt)
+
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { password: hashedPassword },
+    })
+
+    return res.json({ message: 'Mot de passe mis à jour avec succès.' })
+  } catch (error: any) {
+    console.error('Erreur changePassword:', error)
+    return res.status(500).json({ error: 'Une erreur interne est survenue.' })
+  }
+}
